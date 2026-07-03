@@ -1,11 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "S3 CloudFront Studio",
+  "productName": "S3 Studio",
   "version": "0.1.0",
-  "identifier": "com.nicodev.s3-cloudfront-studio",
+  "identifier": "com.banegasn.s3-studio",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "pnpm run dev",
+    "beforeBuildCommand": "pnpm run build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },
@@ -13,11 +13,11 @@
     "windows": [
       {
         "label": "main",
-        "title": "S3 CloudFront Studio",
+        "title": "S3 Studio",
         "width": 1440,
         "height": 920,
-        "minWidth": 980,
-        "minHeight": 680,
+        "minWidth": 680,
+        "minHeight": 480,
         "dragDropEnabled": true
       }
     ],

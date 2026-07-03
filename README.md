@@ -21,25 +21,25 @@ Cross-platform Tauri desktop app for browsing S3 and invalidating linked CloudFr
 Install dependencies:
 
 ```sh
-npm install
+pnpm install
 ```
 
 Run the web build:
 
 ```sh
-npm run build
+pnpm run build
 ```
 
 Run the desktop app in development:
 
 ```sh
-npm run desktop:dev
+pnpm run desktop:dev
 ```
 
 Build the desktop app for the current platform:
 
 ```sh
-npm run desktop:build
+pnpm run desktop:build
 ```
 
 Tauri builds are platform-native. Run the build command on macOS for `.app`/`.dmg` output and on Windows for Windows installer output.
