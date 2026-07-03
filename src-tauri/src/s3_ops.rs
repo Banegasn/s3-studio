@@ -12,7 +12,8 @@ use crate::utils::{
 };
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{
-    BucketCannedAcl, Grant, ObjectCannedAcl, Owner, PublicAccessBlockConfiguration,
+    BucketCannedAcl, Delete, Grant, ObjectCannedAcl, ObjectIdentifier, Owner,
+    PublicAccessBlockConfiguration,
 };
 use base64::{engine::general_purpose, Engine as _};
 use std::collections::BTreeSet;
@@ -489,17 +490,7 @@ pub async fn delete_prefix(
         return Err("No objects found in this folder".to_string());
     }
 
-    let mut deleted = 0;
-    for key in keys {
-        client
-            .delete_object()
-            .bucket(&bucket)
-            .key(&key)
-            .send()
-            .await
-            .map_err(error_message)?;
-        deleted += 1;
-    }
+    let deleted = delete_keys(&client, &bucket, keys).await?;
 
     Ok(DeletePrefixResult {
         bucket,
@@ -537,17 +528,7 @@ pub async fn delete_entries(
         }
     }
 
-    let mut deleted = 0;
-    for key in keys {
-        client
-            .delete_object()
-            .bucket(&bucket)
-            .key(&key)
-            .send()
-            .await
-            .map_err(error_message)?;
-        deleted += 1;
-    }
+    let deleted = delete_keys(&client, &bucket, keys.into_iter().collect()).await?;
 
     Ok(DeleteEntriesResult { bucket, deleted })
 }
@@ -895,6 +876,48 @@ async fn list_keys_for_prefix(
     }
 
     Ok(keys)
+}
+
+async fn delete_keys(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    keys: Vec<String>,
+) -> CommandResult<usize> {
+    let mut deleted = 0;
+
+    for chunk in keys.chunks(1000) {
+        let objects = chunk
+            .iter()
+            .map(|key| {
+                ObjectIdentifier::builder()
+                    .key(key)
+                    .build()
+                    .map_err(error_message)
+            })
+            .collect::<CommandResult<Vec<_>>>()?;
+        let delete = Delete::builder()
+            .set_objects(Some(objects))
+            .quiet(true)
+            .build()
+            .map_err(error_message)?;
+        let output = client
+            .delete_objects()
+            .bucket(bucket)
+            .delete(delete)
+            .send()
+            .await
+            .map_err(error_message)?;
+
+        if let Some(error) = output.errors().first() {
+            let key = error.key().unwrap_or("unknown key");
+            let message = error.message().unwrap_or("unknown delete error");
+            return Err(format!("Failed to delete {key}: {message}"));
+        }
+
+        deleted += chunk.len();
+    }
+
+    Ok(deleted)
 }
 
 fn build_upload_plans(prefix: &str, source_paths: &[String]) -> CommandResult<Vec<UploadPlan>> {
