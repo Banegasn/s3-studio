@@ -106,6 +106,16 @@ export type DeleteEntriesResult = {
   deleted: number
 }
 
+export type DeleteProgress = {
+  id: string
+  bucket: string
+  phase: string
+  listed: number
+  deleted: number
+  total?: number
+  done: boolean
+}
+
 export type DownloadPrefixResult = {
   bucket: string
   prefix: string
@@ -174,6 +184,7 @@ export type PrefixPermissions = {
   bucket: string
   prefix: string
   object_count: number
+  object_count_truncated: boolean
   sampled_objects: PrefixObjectPermissions[]
   errors: string[]
 }

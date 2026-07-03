@@ -190,7 +190,9 @@ function FolderDetails({
         </div>
         <div>
           <span>Objects</span>
-          <strong>{folderPermissions?.object_count ?? '-'}</strong>
+          <strong>
+            {folderPermissions ? `${folderPermissions.object_count}${folderPermissions.object_count_truncated ? '+' : ''}` : '-'}
+          </strong>
         </div>
         <div>
           <span>Prefix</span>

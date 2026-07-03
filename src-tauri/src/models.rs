@@ -215,6 +215,7 @@ pub struct PrefixPermissions {
     pub bucket: String,
     pub prefix: String,
     pub object_count: usize,
+    pub object_count_truncated: bool,
     pub sampled_objects: Vec<PrefixObjectPermissions>,
     pub errors: Vec<String>,
 }

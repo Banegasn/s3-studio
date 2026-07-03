@@ -16,12 +16,26 @@ use aws_sdk_s3::types::{
     PublicAccessBlockConfiguration,
 };
 use base64::{engine::general_purpose, Engine as _};
+use serde::Serialize;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use tauri::Emitter;
 use tokio::task::JoinSet;
 
 const S3_DELETE_OBJECTS_LIMIT: usize = 1000;
 const MAX_CONCURRENT_DELETE_BATCHES: usize = 4;
+const PREFIX_PERMISSION_SAMPLE_LIMIT: i32 = 25;
+
+#[derive(Clone, Serialize)]
+struct DeleteProgressPayload {
+    id: String,
+    bucket: String,
+    phase: String,
+    listed: usize,
+    deleted: usize,
+    total: Option<usize>,
+    done: bool,
+}
 
 struct UploadPlan {
     source_path: PathBuf,
@@ -63,7 +77,7 @@ pub async fn list_objects(
         .bucket(&bucket)
         .prefix(&normalized_prefix)
         .delimiter("/")
-        .max_keys(500);
+        .max_keys(1000);
 
     if let Some(token) = continuation_token {
         request = request.continuation_token(token);
@@ -482,17 +496,22 @@ pub async fn delete_object(
 
 #[tauri::command]
 pub async fn delete_prefix(
+    app_handle: tauri::AppHandle,
     profile: String,
     region: String,
     bucket: String,
     prefix: String,
+    progress_id: Option<String>,
 ) -> CommandResult<DeletePrefixResult> {
     let client = s3_bucket_client(&profile, &region, &bucket).await;
     let normalized_prefix = normalize_prefix(&prefix);
-    let deleted = delete_prefix_keys(&client, &bucket, &normalized_prefix).await?;
+    let progress = DeleteProgress::new(app_handle, bucket.clone(), progress_id, None);
+    progress.emit("listing", 0, 0, false);
+    let deleted = delete_prefix_keys(&client, &bucket, &normalized_prefix, &progress).await?;
     if deleted == 0 {
         return Err("No objects found in this folder".to_string());
     }
+    progress.emit("complete", deleted, deleted, true);
 
     Ok(DeletePrefixResult {
         bucket,
@@ -503,10 +522,12 @@ pub async fn delete_prefix(
 
 #[tauri::command]
 pub async fn delete_entries(
+    app_handle: tauri::AppHandle,
     profile: String,
     region: String,
     bucket: String,
     entries: Vec<S3EntrySelection>,
+    progress_id: Option<String>,
 ) -> CommandResult<DeleteEntriesResult> {
     if entries.is_empty() {
         return Err("No selected items to delete".to_string());
@@ -528,14 +549,35 @@ pub async fn delete_entries(
         }
     }
 
-    let standalone_keys = keys
+    prefixes.sort();
+    prefixes.dedup();
+    let prefixes = prefixes
+        .into_iter()
+        .fold(Vec::<String>::new(), |mut deduped, prefix| {
+            if !deduped.iter().any(|current| prefix.starts_with(current)) {
+                deduped.push(prefix);
+            }
+            deduped
+        });
+
+    let standalone_keys: Vec<String> = keys
         .into_iter()
         .filter(|key| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
         .collect();
+    let known_total = if prefixes.is_empty() {
+        Some(standalone_keys.len())
+    } else {
+        None
+    };
+    let progress = DeleteProgress::new(app_handle, bucket.clone(), progress_id, known_total);
+    progress.emit("deleting", standalone_keys.len(), 0, false);
     let mut deleted = delete_keys(&client, &bucket, standalone_keys).await?;
+    progress.add(deleted, deleted);
+    progress.emit("deleting", deleted, deleted, false);
     for prefix in prefixes {
-        deleted += delete_prefix_keys(&client, &bucket, &prefix).await?;
+        deleted += delete_prefix_keys(&client, &bucket, &prefix, &progress).await?;
     }
+    progress.emit("complete", deleted, deleted, true);
 
     Ok(DeleteEntriesResult { bucket, deleted })
 }
@@ -647,10 +689,22 @@ pub async fn get_prefix_permissions(
 ) -> CommandResult<PrefixPermissions> {
     let client = s3_bucket_client(&profile, &region, &bucket).await;
     let normalized_prefix = normalize_prefix(&prefix);
-    let keys = list_keys_for_prefix(&client, &bucket, &normalized_prefix).await?;
+    let output = client
+        .list_objects_v2()
+        .bucket(&bucket)
+        .prefix(&normalized_prefix)
+        .max_keys(PREFIX_PERMISSION_SAMPLE_LIMIT)
+        .send()
+        .await
+        .map_err(error_message)?;
+    let keys = output
+        .contents()
+        .iter()
+        .filter_map(|object| object.key().map(ToString::to_string))
+        .collect::<Vec<_>>();
     let mut sampled_objects = Vec::new();
 
-    for key in keys.iter().take(25) {
+    for key in &keys {
         let permissions = object_permissions_for_key(&client, &bucket, key).await;
         sampled_objects.push(PrefixObjectPermissions {
             key: key.to_string(),
@@ -664,6 +718,7 @@ pub async fn get_prefix_permissions(
         bucket,
         prefix: normalized_prefix,
         object_count: keys.len(),
+        object_count_truncated: output.is_truncated().unwrap_or(false),
         sampled_objects,
         errors: Vec::new(),
     })
@@ -903,8 +958,11 @@ async fn delete_prefix_keys(
     client: &aws_sdk_s3::Client,
     bucket: &str,
     prefix: &str,
+    progress: &DeleteProgress,
 ) -> CommandResult<usize> {
     let mut token: Option<String> = None;
+    let base_listed = progress.listed();
+    let mut listed = 0;
     let mut deleted = 0;
     let mut delete_tasks = JoinSet::new();
 
@@ -926,9 +984,22 @@ async fn delete_prefix_keys(
             .collect::<Vec<_>>();
 
         if !keys.is_empty() {
+            listed += keys.len();
+            progress.emit(
+                "deleting",
+                base_listed + listed,
+                progress.deleted() + deleted,
+                false,
+            );
             spawn_delete_batch(&mut delete_tasks, client.clone(), bucket.to_string(), keys);
             if delete_tasks.len() >= MAX_CONCURRENT_DELETE_BATCHES {
                 deleted += join_delete_batch(&mut delete_tasks).await?;
+                progress.emit(
+                    "deleting",
+                    base_listed + listed,
+                    progress.deleted() + deleted,
+                    false,
+                );
             }
         }
 
@@ -944,8 +1015,15 @@ async fn delete_prefix_keys(
 
     while !delete_tasks.is_empty() {
         deleted += join_delete_batch(&mut delete_tasks).await?;
+        progress.emit(
+            "deleting",
+            base_listed + listed,
+            progress.deleted() + deleted,
+            false,
+        );
     }
 
+    progress.add(listed, deleted);
     Ok(deleted)
 }
 
@@ -1002,6 +1080,66 @@ async fn delete_key_batch(
     }
 
     Ok(keys.len())
+}
+
+struct DeleteProgress {
+    app_handle: tauri::AppHandle,
+    bucket: String,
+    id: Option<String>,
+    total: Option<usize>,
+    listed: std::sync::atomic::AtomicUsize,
+    deleted: std::sync::atomic::AtomicUsize,
+}
+
+impl DeleteProgress {
+    fn new(
+        app_handle: tauri::AppHandle,
+        bucket: String,
+        id: Option<String>,
+        total: Option<usize>,
+    ) -> Self {
+        Self {
+            app_handle,
+            bucket,
+            id,
+            total,
+            listed: std::sync::atomic::AtomicUsize::new(0),
+            deleted: std::sync::atomic::AtomicUsize::new(0),
+        }
+    }
+
+    fn listed(&self) -> usize {
+        self.listed.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn deleted(&self) -> usize {
+        self.deleted.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn add(&self, listed: usize, deleted: usize) {
+        self.listed
+            .fetch_add(listed, std::sync::atomic::Ordering::Relaxed);
+        self.deleted
+            .fetch_add(deleted, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    fn emit(&self, phase: &str, listed: usize, deleted: usize, done: bool) {
+        let Some(id) = &self.id else {
+            return;
+        };
+        let _ = self.app_handle.emit(
+            "s3-delete-progress",
+            DeleteProgressPayload {
+                id: id.clone(),
+                bucket: self.bucket.clone(),
+                phase: phase.to_string(),
+                listed,
+                deleted,
+                total: self.total,
+                done,
+            },
+        );
+    }
 }
 
 fn build_upload_plans(prefix: &str, source_paths: &[String]) -> CommandResult<Vec<UploadPlan>> {

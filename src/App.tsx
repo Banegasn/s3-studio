@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import './App.css'
@@ -40,6 +41,7 @@ import {
 import type {
   AwsProfile,
   BucketPermissions,
+  DeleteProgress,
   LinkedDistribution,
   ObjectMetadata,
   ObjectPermissions,
@@ -66,6 +68,7 @@ const DEFAULT_DETAILS_PANE_WIDTH = 390
 const MIN_BUCKET_PANE_WIDTH = 220
 const MIN_DETAILS_PANE_WIDTH = 300
 const MIN_BROWSER_PANE_WIDTH = 520
+const DELETE_PROGRESS_EVENT = 's3-delete-progress'
 
 type ResizePane = 'bucket' | 'details'
 
@@ -109,6 +112,10 @@ function bucketStorageId(profile: string, bucket: string) {
   return `${profile}:${bucket}`
 }
 
+function operationId(name: string) {
+  return `${name}:${Date.now()}:${Math.random().toString(36).slice(2)}`
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
@@ -144,6 +151,7 @@ function App() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
   const [invalidationDialog, setInvalidationDialog] = useState<InvalidationDialogState | undefined>()
   const [busy, setBusy] = useState<string | undefined>()
+  const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | undefined>()
   const [loadingObjects, setLoadingObjects] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [isDropActive, setIsDropActive] = useState(false)
@@ -152,6 +160,8 @@ function App() {
   const [isBucketPaneCollapsed, setIsBucketPaneCollapsed] = useState(() => readStorageBoolean(BUCKET_PANE_COLLAPSED_KEY, false))
   const [isDetailsPaneCollapsed, setIsDetailsPaneCollapsed] = useState(() => readStorageBoolean(DETAILS_PANE_COLLAPSED_KEY, false))
   const [activeResize, setActiveResize] = useState<ResizePane | undefined>()
+  const detailRequestId = useRef(0)
+  const activeDeleteProgressId = useRef<string | undefined>(undefined)
   const { toasts, pushToast, dismissToast } = useToasts()
 
   const awsContext = useMemo(
@@ -190,6 +200,7 @@ function App() {
   )
 
   const clearObjectDetails = useCallback(() => {
+    detailRequestId.current += 1
     setSelectedObject(undefined)
     setMetadata(undefined)
     setPreview(undefined)
@@ -316,6 +327,9 @@ function App() {
   const loadObjectDetails = useCallback(
     async (entry: S3Entry) => {
       if (!selectedBucket || entry.kind !== 'object') return
+      if (isDetailsPaneCollapsed) return
+      const requestId = detailRequestId.current + 1
+      detailRequestId.current = requestId
       setLoadingDetails(true)
       setMetadata(undefined)
       setPreview(undefined)
@@ -329,26 +343,32 @@ function App() {
           findLinkedDistributions({ ...awsContext, bucket: selectedBucket, key: entry.key }),
           getObjectPermissions({ ...awsContext, bucket: selectedBucket, key: entry.key }),
         ])
+        if (requestId !== detailRequestId.current) return
         setMetadata(nextMetadata)
         setPreview(nextPreview)
         setLinkedDistributions(links)
         setObjectPermissions(permissions)
         setPathOverrides(Object.fromEntries(links.map((link) => [link.id, link.invalidation_path])))
       } catch (error) {
+        if (requestId !== detailRequestId.current) return
         pushToast('error', `Object details failed: ${errorText(error)}`)
       } finally {
-        setLoadingDetails(false)
+        if (requestId === detailRequestId.current) setLoadingDetails(false)
       }
     },
-    [awsContext, pushToast, selectedBucket],
+    [awsContext, isDetailsPaneCollapsed, pushToast, selectedBucket],
   )
 
   const loadBucketDetails = useCallback(async () => {
     if (!selectedBucket) return
+    if (isDetailsPaneCollapsed) return
+    const requestId = detailRequestId.current + 1
+    detailRequestId.current = requestId
     setLoadingDetails(true)
     setBucketPermissions(undefined)
     try {
       const permissions = await getBucketPermissions({ ...awsContext, bucket: selectedBucket })
+      if (requestId !== detailRequestId.current) return
       setBucketPermissions(permissions)
       setBucketPolicyDraft(permissions.bucket_policy || '')
       setPublicAccessBlockDraft(
@@ -360,27 +380,33 @@ function App() {
         },
       )
     } catch (error) {
+      if (requestId !== detailRequestId.current) return
       pushToast('error', `Bucket details failed: ${errorText(error)}`)
     } finally {
-      setLoadingDetails(false)
+      if (requestId === detailRequestId.current) setLoadingDetails(false)
     }
-  }, [awsContext, pushToast, selectedBucket])
+  }, [awsContext, isDetailsPaneCollapsed, pushToast, selectedBucket])
 
   const loadFolderDetails = useCallback(
     async (entry: S3Entry) => {
       if (!selectedBucket || entry.kind !== 'folder') return
+      if (isDetailsPaneCollapsed) return
+      const requestId = detailRequestId.current + 1
+      detailRequestId.current = requestId
       setLoadingDetails(true)
       setFolderPermissions(undefined)
       try {
         const permissions = await getPrefixPermissions({ ...awsContext, bucket: selectedBucket, prefix: entry.key })
+        if (requestId !== detailRequestId.current) return
         setFolderPermissions(permissions)
       } catch (error) {
+        if (requestId !== detailRequestId.current) return
         pushToast('error', `Folder details failed: ${errorText(error)}`)
       } finally {
-        setLoadingDetails(false)
+        if (requestId === detailRequestId.current) setLoadingDetails(false)
       }
     },
-    [awsContext, pushToast, selectedBucket],
+    [awsContext, isDetailsPaneCollapsed, pushToast, selectedBucket],
   )
 
   const uploadSourcePaths = useCallback(
@@ -424,6 +450,7 @@ function App() {
   }, [prefix, reloadObjectList, selectedBucket])
 
   useEffect(() => {
+    if (isDetailsPaneCollapsed) return
     if (!selectedBucket) return
     if (!selectedEntry) {
       void loadBucketDetails()
@@ -432,13 +459,25 @@ function App() {
     if (selectedEntry.kind === 'folder') {
       void loadFolderDetails(selectedEntry)
     }
-  }, [loadBucketDetails, loadFolderDetails, selectedBucket, selectedEntry])
+  }, [isDetailsPaneCollapsed, loadBucketDetails, loadFolderDetails, selectedBucket, selectedEntry])
 
   useEffect(() => {
+    if (isDetailsPaneCollapsed) return
     if (selectedObject?.kind === 'object') {
       void loadObjectDetails(selectedObject)
     }
-  }, [loadObjectDetails, selectedObject])
+  }, [isDetailsPaneCollapsed, loadObjectDetails, selectedObject])
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void listen<DeleteProgress>(DELETE_PROGRESS_EVENT, (event) => {
+      if (activeDeleteProgressId.current !== event.payload.id) return
+      setDeleteProgress(event.payload)
+    }).then((handler) => {
+      unlisten = handler
+    })
+    return () => unlisten?.()
+  }, [])
 
   useEffect(() => {
     let unlisten: (() => void) | undefined
@@ -755,12 +794,23 @@ function App() {
         kind: 'warning',
       })
       if (!confirmed) return
+      const progressId = operationId('delete-folder')
+      activeDeleteProgressId.current = progressId
+      setDeleteProgress({
+        id: progressId,
+        bucket: selectedBucket,
+        phase: 'listing',
+        listed: 0,
+        deleted: 0,
+        done: false,
+      })
       setBusy('Deleting folder')
       try {
         const result = await deletePrefix({
           ...awsContext,
           bucket: selectedBucket,
           prefix: entry.key,
+          progressId,
         })
         pushToast('success', `Deleted ${result.deleted} object${result.deleted === 1 ? '' : 's'}`)
         clearSelection()
@@ -768,7 +818,9 @@ function App() {
       } catch (error) {
         pushToast('error', `Folder delete failed: ${errorText(error)}`)
       } finally {
+        activeDeleteProgressId.current = undefined
         setBusy(undefined)
+        setDeleteProgress(undefined)
       }
       return
     }
@@ -812,12 +864,24 @@ function App() {
       },
     )
     if (!confirmed) return
+    const progressId = operationId('delete-selection')
+    activeDeleteProgressId.current = progressId
+    setDeleteProgress({
+      id: progressId,
+      bucket: selectedBucket,
+      phase: 'deleting',
+      listed: entries.length,
+      deleted: 0,
+      total: folders === 0 ? entries.length : undefined,
+      done: false,
+    })
     setBusy(`Deleting ${entries.length} selected items`)
     try {
       const result = await deleteEntries({
         ...awsContext,
         bucket: selectedBucket,
         entries: entrySelections(entries),
+        progressId,
       })
       pushToast('success', `Deleted ${result.deleted} object${result.deleted === 1 ? '' : 's'}`)
       clearSelection()
@@ -825,7 +889,9 @@ function App() {
     } catch (error) {
       pushToast('error', `Bulk delete failed: ${errorText(error)}`)
     } finally {
+      activeDeleteProgressId.current = undefined
       setBusy(undefined)
+      setDeleteProgress(undefined)
     }
   }
 
@@ -1088,6 +1154,14 @@ function App() {
     }
   }
 
+  const progressPercent =
+    deleteProgress?.total && deleteProgress.total > 0 ? Math.min(100, Math.round((deleteProgress.deleted / deleteProgress.total) * 100)) : undefined
+  const progressLabel = deleteProgress
+    ? deleteProgress.total
+      ? `${deleteProgress.deleted} / ${deleteProgress.total} deleted`
+      : `${deleteProgress.deleted} deleted${deleteProgress.listed > deleteProgress.deleted ? `, ${deleteProgress.listed} listed` : ''}`
+    : undefined
+
   return (
     <div className="app-shell">
       <AppHeader
@@ -1230,7 +1304,23 @@ function App() {
       {busy ? (
         <div className="busy-bar">
           <Loader2 className="spin" size={16} />
-          <span>{busy}</span>
+          <div className="busy-content">
+            <div className="busy-text">
+              <span>{busy}</span>
+              {progressLabel ? <small>{progressLabel}</small> : null}
+            </div>
+            {deleteProgress ? (
+              <div
+                className={progressPercent === undefined ? 'progress-track indeterminate' : 'progress-track'}
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={deleteProgress.total || undefined}
+                aria-valuenow={deleteProgress.total ? deleteProgress.deleted : undefined}
+              >
+                <span style={{ width: progressPercent === undefined ? undefined : `${progressPercent}%` }} />
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

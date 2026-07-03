@@ -127,6 +127,7 @@ export function deletePrefix(
   context: AwsContext & {
     bucket: string
     prefix: string
+    progressId?: string
   },
 ) {
   return invoke<DeletePrefixResult>('delete_prefix', context)
@@ -136,6 +137,7 @@ export function deleteEntries(
   context: AwsContext & {
     bucket: string
     entries: S3EntrySelection[]
+    progressId?: string
   },
 ) {
   return invoke<DeleteEntriesResult>('delete_entries', context)
