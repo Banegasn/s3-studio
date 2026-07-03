@@ -18,6 +18,10 @@ use aws_sdk_s3::types::{
 use base64::{engine::general_purpose, Engine as _};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use tokio::task::JoinSet;
+
+const S3_DELETE_OBJECTS_LIMIT: usize = 1000;
+const MAX_CONCURRENT_DELETE_BATCHES: usize = 4;
 
 struct UploadPlan {
     source_path: PathBuf,
@@ -485,12 +489,10 @@ pub async fn delete_prefix(
 ) -> CommandResult<DeletePrefixResult> {
     let client = s3_bucket_client(&profile, &region, &bucket).await;
     let normalized_prefix = normalize_prefix(&prefix);
-    let keys = list_keys_for_prefix(&client, &bucket, &normalized_prefix).await?;
-    if keys.is_empty() {
+    let deleted = delete_prefix_keys(&client, &bucket, &normalized_prefix).await?;
+    if deleted == 0 {
         return Err("No objects found in this folder".to_string());
     }
-
-    let deleted = delete_keys(&client, &bucket, keys).await?;
 
     Ok(DeletePrefixResult {
         bucket,
@@ -512,14 +514,12 @@ pub async fn delete_entries(
 
     let client = s3_bucket_client(&profile, &region, &bucket).await;
     let mut keys = BTreeSet::new();
+    let mut prefixes = Vec::new();
 
     for entry in entries {
         match entry.kind.as_str() {
             "folder" => {
-                let normalized_prefix = normalize_prefix(&entry.key);
-                for key in list_keys_for_prefix(&client, &bucket, &normalized_prefix).await? {
-                    keys.insert(key);
-                }
+                prefixes.push(normalize_prefix(&entry.key));
             }
             "object" => {
                 keys.insert(entry.key);
@@ -528,7 +528,14 @@ pub async fn delete_entries(
         }
     }
 
-    let deleted = delete_keys(&client, &bucket, keys.into_iter().collect()).await?;
+    let standalone_keys = keys
+        .into_iter()
+        .filter(|key| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
+        .collect();
+    let mut deleted = delete_keys(&client, &bucket, standalone_keys).await?;
+    for prefix in prefixes {
+        deleted += delete_prefix_keys(&client, &bucket, &prefix).await?;
+    }
 
     Ok(DeleteEntriesResult { bucket, deleted })
 }
@@ -885,39 +892,116 @@ async fn delete_keys(
 ) -> CommandResult<usize> {
     let mut deleted = 0;
 
-    for chunk in keys.chunks(1000) {
-        let objects = chunk
-            .iter()
-            .map(|key| {
-                ObjectIdentifier::builder()
-                    .key(key)
-                    .build()
-                    .map_err(error_message)
-            })
-            .collect::<CommandResult<Vec<_>>>()?;
-        let delete = Delete::builder()
-            .set_objects(Some(objects))
-            .quiet(true)
-            .build()
-            .map_err(error_message)?;
-        let output = client
-            .delete_objects()
-            .bucket(bucket)
-            .delete(delete)
-            .send()
-            .await
-            .map_err(error_message)?;
-
-        if let Some(error) = output.errors().first() {
-            let key = error.key().unwrap_or("unknown key");
-            let message = error.message().unwrap_or("unknown delete error");
-            return Err(format!("Failed to delete {key}: {message}"));
-        }
-
-        deleted += chunk.len();
+    for chunk in keys.chunks(S3_DELETE_OBJECTS_LIMIT) {
+        deleted += delete_key_batch(client, bucket, chunk.to_vec()).await?;
     }
 
     Ok(deleted)
+}
+
+async fn delete_prefix_keys(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    prefix: &str,
+) -> CommandResult<usize> {
+    let mut token: Option<String> = None;
+    let mut deleted = 0;
+    let mut delete_tasks = JoinSet::new();
+
+    loop {
+        let mut request = client
+            .list_objects_v2()
+            .bucket(bucket)
+            .prefix(prefix)
+            .max_keys(S3_DELETE_OBJECTS_LIMIT as i32);
+        if let Some(next) = token.take() {
+            request = request.continuation_token(next);
+        }
+
+        let output = request.send().await.map_err(error_message)?;
+        let keys = output
+            .contents()
+            .iter()
+            .filter_map(|object| object.key().map(ToString::to_string))
+            .collect::<Vec<_>>();
+
+        if !keys.is_empty() {
+            spawn_delete_batch(&mut delete_tasks, client.clone(), bucket.to_string(), keys);
+            if delete_tasks.len() >= MAX_CONCURRENT_DELETE_BATCHES {
+                deleted += join_delete_batch(&mut delete_tasks).await?;
+            }
+        }
+
+        if output.is_truncated().unwrap_or(false) {
+            token = output.next_continuation_token().map(ToString::to_string);
+            if token.is_none() {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    while !delete_tasks.is_empty() {
+        deleted += join_delete_batch(&mut delete_tasks).await?;
+    }
+
+    Ok(deleted)
+}
+
+fn spawn_delete_batch(
+    delete_tasks: &mut JoinSet<CommandResult<usize>>,
+    client: aws_sdk_s3::Client,
+    bucket: String,
+    keys: Vec<String>,
+) {
+    delete_tasks.spawn(async move { delete_key_batch(&client, &bucket, keys).await });
+}
+
+async fn join_delete_batch(
+    delete_tasks: &mut JoinSet<CommandResult<usize>>,
+) -> CommandResult<usize> {
+    match delete_tasks.join_next().await {
+        Some(Ok(result)) => result,
+        Some(Err(error)) => Err(error_message(error)),
+        None => Ok(0),
+    }
+}
+
+async fn delete_key_batch(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    keys: Vec<String>,
+) -> CommandResult<usize> {
+    let objects = keys
+        .iter()
+        .map(|key| {
+            ObjectIdentifier::builder()
+                .key(key)
+                .build()
+                .map_err(error_message)
+        })
+        .collect::<CommandResult<Vec<_>>>()?;
+    let delete = Delete::builder()
+        .set_objects(Some(objects))
+        .quiet(true)
+        .build()
+        .map_err(error_message)?;
+    let output = client
+        .delete_objects()
+        .bucket(bucket)
+        .delete(delete)
+        .send()
+        .await
+        .map_err(error_message)?;
+
+    if let Some(error) = output.errors().first() {
+        let key = error.key().unwrap_or("unknown key");
+        let message = error.message().unwrap_or("unknown delete error");
+        return Err(format!("Failed to delete {key}: {message}"));
+    }
+
+    Ok(keys.len())
 }
 
 fn build_upload_plans(prefix: &str, source_paths: &[String]) -> CommandResult<Vec<UploadPlan>> {
