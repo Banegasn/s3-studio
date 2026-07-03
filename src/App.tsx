@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
@@ -53,6 +53,21 @@ import type {
 import { DEFAULT_REGION, PREVIEW_LIMIT, errorText, fileNameFromKey } from './utils/format'
 
 const LAST_PROFILE_KEY = 's3-cloudfront-studio:last-profile'
+const LAST_BUCKETS_KEY = 's3-cloudfront-studio:last-buckets'
+const LAST_PREFIXES_KEY = 's3-cloudfront-studio:last-prefixes'
+const LAST_BUCKET_FILTERS_KEY = 's3-cloudfront-studio:last-bucket-filters'
+const LAST_OBJECT_FILTERS_KEY = 's3-cloudfront-studio:last-object-filters'
+const BUCKET_PANE_WIDTH_KEY = 's3-cloudfront-studio:bucket-pane-width'
+const DETAILS_PANE_WIDTH_KEY = 's3-cloudfront-studio:details-pane-width'
+const BUCKET_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:bucket-pane-collapsed'
+const DETAILS_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:details-pane-collapsed'
+const DEFAULT_BUCKET_PANE_WIDTH = 280
+const DEFAULT_DETAILS_PANE_WIDTH = 390
+const MIN_BUCKET_PANE_WIDTH = 220
+const MIN_DETAILS_PANE_WIDTH = 300
+const MIN_BROWSER_PANE_WIDTH = 520
+
+type ResizePane = 'bucket' | 'details'
 
 function entryId(entry: S3Entry) {
   return `${entry.kind}:${entry.key}`
@@ -62,7 +77,44 @@ function entrySelections(entries: S3Entry[]): S3EntrySelection[] {
   return entries.map((entry) => ({ key: entry.key, kind: entry.kind }))
 }
 
+function readStorageMap(key: string) {
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return {}
+    const value = JSON.parse(raw)
+    return value && typeof value === 'object' ? (value as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeStorageMap(key: string, value: Record<string, string>) {
+  window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function readStorageNumber(key: string, fallback: number) {
+  const raw = window.localStorage.getItem(key)
+  if (!raw) return fallback
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : fallback
+}
+
+function readStorageBoolean(key: string, fallback: boolean) {
+  const raw = window.localStorage.getItem(key)
+  if (raw === null) return fallback
+  return raw === 'true'
+}
+
+function bucketStorageId(profile: string, bucket: string) {
+  return `${profile}:${bucket}`
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
 function App() {
+  const workspaceRef = useRef<HTMLElement | null>(null)
   const [profiles, setProfiles] = useState<AwsProfile[]>([])
   const [selectedProfile, setSelectedProfile] = useState('default')
   const [region, setRegion] = useState(DEFAULT_REGION)
@@ -95,6 +147,11 @@ function App() {
   const [loadingObjects, setLoadingObjects] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [isDropActive, setIsDropActive] = useState(false)
+  const [bucketPaneWidth, setBucketPaneWidth] = useState(() => readStorageNumber(BUCKET_PANE_WIDTH_KEY, DEFAULT_BUCKET_PANE_WIDTH))
+  const [detailsPaneWidth, setDetailsPaneWidth] = useState(() => readStorageNumber(DETAILS_PANE_WIDTH_KEY, DEFAULT_DETAILS_PANE_WIDTH))
+  const [isBucketPaneCollapsed, setIsBucketPaneCollapsed] = useState(() => readStorageBoolean(BUCKET_PANE_COLLAPSED_KEY, false))
+  const [isDetailsPaneCollapsed, setIsDetailsPaneCollapsed] = useState(() => readStorageBoolean(DETAILS_PANE_COLLAPSED_KEY, false))
+  const [activeResize, setActiveResize] = useState<ResizePane | undefined>()
   const { toasts, pushToast, dismissToast } = useToasts()
 
   const awsContext = useMemo(
@@ -118,6 +175,19 @@ function App() {
     if (!query) return objects
     return objects.filter((entry) => entry.name.toLowerCase().includes(query) || entry.key.toLowerCase().includes(query))
   }, [objectFilter, objects])
+
+  const visibleBucketPaneWidth = isBucketPaneCollapsed ? 0 : bucketPaneWidth
+  const visibleDetailsPaneWidth = isDetailsPaneCollapsed ? 0 : detailsPaneWidth
+  const leftSplitterWidth = isBucketPaneCollapsed ? 0 : 10
+  const rightSplitterWidth = isDetailsPaneCollapsed ? 0 : 10
+  const workspaceMinWidth = visibleBucketPaneWidth + leftSplitterWidth + MIN_BROWSER_PANE_WIDTH + rightSplitterWidth + visibleDetailsPaneWidth
+  const workspaceStyle = useMemo(
+    () => ({
+      gridTemplateColumns: `${visibleBucketPaneWidth}px ${leftSplitterWidth}px minmax(${MIN_BROWSER_PANE_WIDTH}px, 1fr) ${rightSplitterWidth}px ${visibleDetailsPaneWidth}px`,
+      minWidth: `${workspaceMinWidth}px`,
+    }),
+    [leftSplitterWidth, rightSplitterWidth, visibleBucketPaneWidth, visibleDetailsPaneWidth, workspaceMinWidth],
+  )
 
   const clearObjectDetails = useCallback(() => {
     setSelectedObject(undefined)
@@ -144,6 +214,21 @@ function App() {
     setPublicAccessBlockDraft(undefined)
   }, [])
 
+  const restoreBucketWorkspace = useCallback(
+    (profileName: string, bucketName: string) => {
+      const storageId = bucketStorageId(profileName, bucketName)
+      const prefixes = readStorageMap(LAST_PREFIXES_KEY)
+      const objectFilters = readStorageMap(LAST_OBJECT_FILTERS_KEY)
+      setPrefix(prefixes[storageId] || '')
+      setObjectFilter(objectFilters[storageId] || '')
+      setObjects([])
+      setNextToken(undefined)
+      clearBucketDetails()
+      clearSelection()
+    },
+    [clearBucketDetails, clearSelection],
+  )
+
   const loadProfileList = useCallback(async () => {
     setBusy('Loading AWS profiles')
     try {
@@ -155,11 +240,14 @@ function App() {
         nextProfiles.find((profile) => profile.name === savedProfile) ?? nextProfiles.find((profile) => profile.name === 'default') ?? nextProfiles[0]
       setSelectedProfile(preferred.name)
       setRegion(preferred.region || DEFAULT_REGION)
+      const bucketFilters = readStorageMap(LAST_BUCKET_FILTERS_KEY)
+      setBucketFilter(bucketFilters[preferred.name] || '')
     } catch (error) {
       pushToast('error', `AWS profile discovery failed: ${errorText(error)}`)
       setProfiles([{ name: 'default', region: DEFAULT_REGION, source: 'fallback' }])
       setSelectedProfile('default')
       setRegion(DEFAULT_REGION)
+      setBucketFilter('')
     } finally {
       setBusy(undefined)
     }
@@ -170,8 +258,19 @@ function App() {
     try {
       const result = await listBuckets(awsContext)
       setBuckets(result)
-      setSelectedBucket((current) => (result.length > 0 && result.some((bucket) => bucket.name === current) ? current : result[0]?.name || ''))
+      const savedBuckets = readStorageMap(LAST_BUCKETS_KEY)
+      const savedBucket = savedBuckets[awsContext.profile]
+      const currentBucketIsValid = result.some((bucket) => bucket.name === selectedBucket)
+      const savedBucketIsValid = result.some((bucket) => bucket.name === savedBucket)
+      const nextBucket = currentBucketIsValid ? selectedBucket : savedBucketIsValid ? savedBucket || '' : result[0]?.name || ''
+      setSelectedBucket(nextBucket)
+      if (nextBucket) {
+        restoreBucketWorkspace(awsContext.profile, nextBucket)
+      }
       if (result.length === 0) {
+        setSelectedBucket('')
+        setPrefix('')
+        setObjectFilter('')
         setObjects([])
         clearBucketDetails()
         clearSelection()
@@ -181,7 +280,7 @@ function App() {
     } finally {
       setBusy(undefined)
     }
-  }, [awsContext, clearBucketDetails, clearSelection, pushToast])
+  }, [awsContext, clearBucketDetails, clearSelection, pushToast, restoreBucketWorkspace, selectedBucket])
 
   const fetchObjectPage = useCallback(
     async (append: boolean, continuationToken?: string) => {
@@ -322,7 +421,7 @@ function App() {
 
   useEffect(() => {
     void reloadObjectList()
-  }, [prefix, reloadObjectList])
+  }, [prefix, reloadObjectList, selectedBucket])
 
   useEffect(() => {
     if (!selectedBucket) return
@@ -368,13 +467,87 @@ function App() {
     }
   }, [uploadSourcePaths])
 
+  useEffect(() => {
+    if (!activeResize) return
+
+    function stopResize() {
+      setActiveResize(undefined)
+      document.body.classList.remove('is-resizing')
+    }
+
+    function handleMouseMove(event: globalThis.MouseEvent) {
+      const workspace = workspaceRef.current
+      if (!workspace) return
+      const rect = workspace.getBoundingClientRect()
+      if (activeResize === 'bucket') {
+        const max = Math.max(MIN_BUCKET_PANE_WIDTH, rect.width - visibleDetailsPaneWidth - rightSplitterWidth - leftSplitterWidth - MIN_BROWSER_PANE_WIDTH)
+        setBucketPaneWidth(clamp(event.clientX - rect.left, MIN_BUCKET_PANE_WIDTH, max))
+        return
+      }
+      const max = Math.max(MIN_DETAILS_PANE_WIDTH, rect.width - visibleBucketPaneWidth - rightSplitterWidth - leftSplitterWidth - MIN_BROWSER_PANE_WIDTH)
+      setDetailsPaneWidth(clamp(rect.right - event.clientX, MIN_DETAILS_PANE_WIDTH, max))
+    }
+
+    document.body.classList.add('is-resizing')
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', stopResize)
+    return () => {
+      document.body.classList.remove('is-resizing')
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', stopResize)
+    }
+  }, [activeResize, leftSplitterWidth, rightSplitterWidth, visibleBucketPaneWidth, visibleDetailsPaneWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(BUCKET_PANE_WIDTH_KEY, String(bucketPaneWidth))
+  }, [bucketPaneWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(DETAILS_PANE_WIDTH_KEY, String(detailsPaneWidth))
+  }, [detailsPaneWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(BUCKET_PANE_COLLAPSED_KEY, String(isBucketPaneCollapsed))
+  }, [isBucketPaneCollapsed])
+
+  useEffect(() => {
+    window.localStorage.setItem(DETAILS_PANE_COLLAPSED_KEY, String(isDetailsPaneCollapsed))
+  }, [isDetailsPaneCollapsed])
+
+  useEffect(() => {
+    if (!selectedProfile) return
+    const filters = readStorageMap(LAST_BUCKET_FILTERS_KEY)
+    writeStorageMap(LAST_BUCKET_FILTERS_KEY, { ...filters, [selectedProfile]: bucketFilter })
+  }, [bucketFilter, selectedProfile])
+
+  useEffect(() => {
+    if (!selectedProfile || !selectedBucket) return
+    const bucketsByProfile = readStorageMap(LAST_BUCKETS_KEY)
+    writeStorageMap(LAST_BUCKETS_KEY, { ...bucketsByProfile, [selectedProfile]: selectedBucket })
+  }, [selectedBucket, selectedProfile])
+
+  useEffect(() => {
+    if (!selectedProfile || !selectedBucket) return
+    const prefixes = readStorageMap(LAST_PREFIXES_KEY)
+    writeStorageMap(LAST_PREFIXES_KEY, { ...prefixes, [bucketStorageId(selectedProfile, selectedBucket)]: prefix })
+  }, [prefix, selectedBucket, selectedProfile])
+
+  useEffect(() => {
+    if (!selectedProfile || !selectedBucket) return
+    const filters = readStorageMap(LAST_OBJECT_FILTERS_KEY)
+    writeStorageMap(LAST_OBJECT_FILTERS_KEY, { ...filters, [bucketStorageId(selectedProfile, selectedBucket)]: objectFilter })
+  }, [objectFilter, selectedBucket, selectedProfile])
+
   function chooseProfile(profileName: string) {
     const profile = profiles.find((item) => item.name === profileName)
     window.localStorage.setItem(LAST_PROFILE_KEY, profileName)
     setSelectedProfile(profileName)
     setRegion(profile?.region || region || DEFAULT_REGION)
+    const bucketFilters = readStorageMap(LAST_BUCKET_FILTERS_KEY)
+    setBucketFilter(bucketFilters[profileName] || '')
     setSelectedBucket('')
     setPrefix('')
+    setObjectFilter('')
     setObjects([])
     clearBucketDetails()
     clearSelection()
@@ -382,11 +555,10 @@ function App() {
 
   function chooseBucket(bucketName: string) {
     setSelectedBucket(bucketName)
-    setPrefix('')
-    setObjects([])
-    setNextToken(undefined)
-    clearBucketDetails()
-    clearSelection()
+    restoreBucketWorkspace(selectedProfile, bucketName)
+    if (bucketName === selectedBucket) {
+      void reloadObjectList()
+    }
   }
 
   function navigateToPrefix(nextPrefix: string) {
@@ -922,82 +1094,112 @@ function App() {
         profiles={profiles}
         selectedProfile={selectedProfile}
         region={region}
+        isBucketPaneCollapsed={isBucketPaneCollapsed}
+        isDetailsPaneCollapsed={isDetailsPaneCollapsed}
         onProfileChange={chooseProfile}
         onRegionChange={setRegion}
         onRefreshBuckets={loadBucketList}
+        onToggleBucketPane={() => setIsBucketPaneCollapsed((current) => !current)}
+        onToggleDetailsPane={() => setIsDetailsPaneCollapsed((current) => !current)}
       />
 
-      <main className="workspace">
-        <BucketPane
-          buckets={buckets}
-          filteredBuckets={filteredBuckets}
-          bucketFilter={bucketFilter}
-          selectedBucket={selectedBucket}
-          onFilterChange={setBucketFilter}
-          onChooseBucket={chooseBucket}
-        />
+      <div className="workspace-scroll">
+        <main ref={workspaceRef} className="workspace" style={workspaceStyle}>
+          <div className="pane-slot" aria-hidden={isBucketPaneCollapsed}>
+            {!isBucketPaneCollapsed ? (
+              <BucketPane
+                buckets={buckets}
+                filteredBuckets={filteredBuckets}
+                bucketFilter={bucketFilter}
+                selectedBucket={selectedBucket}
+                onFilterChange={setBucketFilter}
+                onChooseBucket={chooseBucket}
+              />
+            ) : null}
+          </div>
 
-        <BrowserPane
-          bucket={selectedBucket}
-          prefix={prefix}
-          objects={objects}
-          filteredObjects={filteredObjects}
-          objectFilter={objectFilter}
-          selectedEntry={selectedEntry}
-          selectedEntries={selectedEntries}
-          nextToken={nextToken}
-          busy={busy}
-          loadingObjects={loadingObjects}
-          isDropActive={isDropActive}
-          onFilterChange={setObjectFilter}
-          onSetPrefix={navigateToPrefix}
-          onSelectEntry={selectEntry}
-          onSelectAll={selectAllEntries}
-          onClearSelection={clearSelection}
-          onActivateEntry={activateEntry}
-          onContextMenu={openContextMenu}
-          onUploadFiles={handleUploadFiles}
-          onUploadFolders={handleUploadFolders}
-          onDownload={handleDownload}
-          onDelete={handleDelete}
-          onRefresh={reloadObjectList}
-          onLoadMore={loadMoreObjectList}
-        />
+          <div
+            className={isBucketPaneCollapsed ? 'pane-splitter hidden' : 'pane-splitter'}
+            onMouseDown={() => setActiveResize('bucket')}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize bucket sidebar"
+          />
 
-        <DetailsPane
-          selectedBucket={selectedBucket}
-          selectedBucketDetails={selectedBucketDetails}
-          selectedEntry={selectedEntry}
-          selectedObject={selectedObject}
-          metadata={metadata}
-          preview={preview}
-          bucketPermissions={bucketPermissions}
-          folderPermissions={folderPermissions}
-          objectPermissions={objectPermissions}
-          linkedDistributions={linkedDistributions}
-          pathOverrides={pathOverrides}
-          bucketAcl={bucketAclDraft}
-          folderAcl={folderAclDraft}
-          objectAcl={objectAclDraft}
-          bucketPolicyDraft={bucketPolicyDraft}
-          publicAccessBlockDraft={publicAccessBlockDraft}
-          loadingDetails={loadingDetails}
-          busy={busy}
-          onBucketAclChange={setBucketAclDraft}
-          onFolderAclChange={setFolderAclDraft}
-          onObjectAclChange={setObjectAclDraft}
-          onApplyBucketAcl={applyBucketAcl}
-          onApplyFolderAcl={applyFolderAcl}
-          onApplyObjectAcl={applyObjectAcl}
-          onBucketPolicyChange={setBucketPolicyDraft}
-          onSaveBucketPolicy={saveBucketPolicy}
-          onDeleteBucketPolicy={removeBucketPolicy}
-          onPublicAccessBlockChange={setPublicAccessBlockDraft}
-          onSavePublicAccessBlock={savePublicAccessBlock}
-          onPathOverride={(distributionId, value) => setPathOverrides((current) => ({ ...current, [distributionId]: value }))}
-          onInvalidate={handleInvalidate}
-        />
-      </main>
+          <BrowserPane
+            bucket={selectedBucket}
+            prefix={prefix}
+            objects={objects}
+            filteredObjects={filteredObjects}
+            objectFilter={objectFilter}
+            selectedEntry={selectedEntry}
+            selectedEntries={selectedEntries}
+            nextToken={nextToken}
+            busy={busy}
+            loadingObjects={loadingObjects}
+            isDropActive={isDropActive}
+            onFilterChange={setObjectFilter}
+            onSetPrefix={navigateToPrefix}
+            onSelectEntry={selectEntry}
+            onSelectAll={selectAllEntries}
+            onClearSelection={clearSelection}
+            onActivateEntry={activateEntry}
+            onContextMenu={openContextMenu}
+            onUploadFiles={handleUploadFiles}
+            onUploadFolders={handleUploadFolders}
+            onDownload={handleDownload}
+            onDelete={handleDelete}
+            onRefresh={reloadObjectList}
+            onLoadMore={loadMoreObjectList}
+          />
+
+          <div
+            className={isDetailsPaneCollapsed ? 'pane-splitter hidden' : 'pane-splitter'}
+            onMouseDown={() => setActiveResize('details')}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize details sidebar"
+          />
+
+          <div className="pane-slot" aria-hidden={isDetailsPaneCollapsed}>
+            {!isDetailsPaneCollapsed ? (
+              <DetailsPane
+                selectedBucket={selectedBucket}
+                selectedBucketDetails={selectedBucketDetails}
+                selectedEntry={selectedEntry}
+                selectedObject={selectedObject}
+                metadata={metadata}
+                preview={preview}
+                bucketPermissions={bucketPermissions}
+                folderPermissions={folderPermissions}
+                objectPermissions={objectPermissions}
+                linkedDistributions={linkedDistributions}
+                pathOverrides={pathOverrides}
+                bucketAcl={bucketAclDraft}
+                folderAcl={folderAclDraft}
+                objectAcl={objectAclDraft}
+                bucketPolicyDraft={bucketPolicyDraft}
+                publicAccessBlockDraft={publicAccessBlockDraft}
+                loadingDetails={loadingDetails}
+                busy={busy}
+                onBucketAclChange={setBucketAclDraft}
+                onFolderAclChange={setFolderAclDraft}
+                onObjectAclChange={setObjectAclDraft}
+                onApplyBucketAcl={applyBucketAcl}
+                onApplyFolderAcl={applyFolderAcl}
+                onApplyObjectAcl={applyObjectAcl}
+                onBucketPolicyChange={setBucketPolicyDraft}
+                onSaveBucketPolicy={saveBucketPolicy}
+                onDeleteBucketPolicy={removeBucketPolicy}
+                onPublicAccessBlockChange={setPublicAccessBlockDraft}
+                onSavePublicAccessBlock={savePublicAccessBlock}
+                onPathOverride={(distributionId, value) => setPathOverrides((current) => ({ ...current, [distributionId]: value }))}
+                onInvalidate={handleInvalidate}
+              />
+            ) : null}
+          </div>
+        </main>
+      </div>
 
       <ContextMenu
         state={contextMenu}
