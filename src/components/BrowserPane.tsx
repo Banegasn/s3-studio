@@ -1,0 +1,293 @@
+import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
+import { ChevronRight, Download, File, Folder, Loader2, RefreshCw, Search, Trash2, Upload } from 'lucide-react'
+import type { S3Entry } from '../types'
+import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
+
+export type SelectionMode = 'single' | 'toggle' | 'range'
+
+type Props = {
+  bucket: string
+  prefix: string
+  objects: S3Entry[]
+  filteredObjects: S3Entry[]
+  objectFilter: string
+  selectedEntry?: S3Entry
+  selectedEntries: S3Entry[]
+  nextToken?: string
+  busy?: string
+  loadingObjects: boolean
+  isDropActive: boolean
+  onFilterChange: (value: string) => void
+  onSetPrefix: (prefix: string) => void
+  onSelectEntry: (entry: S3Entry, mode?: SelectionMode) => void
+  onSelectAll: () => void
+  onClearSelection: () => void
+  onActivateEntry: (entry: S3Entry) => void
+  onContextMenu: (entry: S3Entry, x: number, y: number) => void
+  onUploadFiles: () => void
+  onUploadFolders: () => void
+  onDownload: () => void
+  onDelete: () => void
+  onRefresh: () => void
+  onLoadMore: () => void
+}
+
+export function BrowserPane({
+  bucket,
+  prefix,
+  objects,
+  filteredObjects,
+  objectFilter,
+  selectedEntry,
+  selectedEntries,
+  nextToken,
+  busy,
+  loadingObjects,
+  isDropActive,
+  onFilterChange,
+  onSetPrefix,
+  onSelectEntry,
+  onSelectAll,
+  onClearSelection,
+  onActivateEntry,
+  onContextMenu,
+  onUploadFiles,
+  onUploadFolders,
+  onDownload,
+  onDelete,
+  onRefresh,
+  onLoadMore,
+}: Props) {
+  const breadcrumbs = buildBreadcrumbs(prefix)
+  const selectedIds = useMemo(() => new Set(selectedEntries.map(entryId)), [selectedEntries])
+  const hasSelectedEntry = selectedEntries.length > 0
+  const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
+  const selectAllRef = useRef<HTMLInputElement | null>(null)
+  const selectedFilteredCount = filteredObjects.filter((entry) => selectedIds.has(entryId(entry))).length
+  const allFilteredSelected = filteredObjects.length > 0 && selectedFilteredCount === filteredObjects.length
+  const someFilteredSelected = selectedFilteredCount > 0 && !allFilteredSelected
+
+  useEffect(() => {
+    selectedRowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selectedEntry?.key, selectedEntry?.kind])
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected
+    }
+  }, [someFilteredSelected])
+
+  function toggleAllVisible() {
+    if (allFilteredSelected) {
+      onClearSelection()
+      return
+    }
+    onSelectAll()
+  }
+
+  function moveSelection(direction: 1 | -1, mode: SelectionMode = 'single') {
+    if (filteredObjects.length === 0) return
+    const currentIndex = selectedEntry
+      ? filteredObjects.findIndex((entry) => entry.key === selectedEntry.key && entry.kind === selectedEntry.kind)
+      : -1
+    const fallbackIndex = direction === 1 ? 0 : filteredObjects.length - 1
+    const nextIndex = currentIndex >= 0 ? Math.min(Math.max(currentIndex + direction, 0), filteredObjects.length - 1) : fallbackIndex
+    onSelectEntry(filteredObjects[nextIndex], mode)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveSelection(1, event.shiftKey ? 'range' : 'single')
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveSelection(-1, event.shiftKey ? 'range' : 'single')
+      return
+    }
+    if (event.key === 'Home' && filteredObjects.length > 0) {
+      event.preventDefault()
+      onSelectEntry(filteredObjects[0], event.shiftKey ? 'range' : 'single')
+      return
+    }
+    if (event.key === 'End' && filteredObjects.length > 0) {
+      event.preventDefault()
+      onSelectEntry(filteredObjects[filteredObjects.length - 1], event.shiftKey ? 'range' : 'single')
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+      event.preventDefault()
+      onSelectAll()
+      return
+    }
+    if ((event.key === 'Enter' || event.key === 'ArrowRight') && selectedEntry) {
+      event.preventDefault()
+      onActivateEntry(selectedEntry)
+      return
+    }
+    if ((event.key === 'Backspace' || event.key === 'ArrowLeft') && prefix) {
+      event.preventDefault()
+      onSetPrefix(parentPrefix(prefix))
+      return
+    }
+    if (event.key === 'Delete' && hasSelectedEntry) {
+      event.preventDefault()
+      onDelete()
+    }
+  }
+
+  function handleRowClick(event: MouseEvent<HTMLTableRowElement>, entry: S3Entry) {
+    if (event.shiftKey) {
+      onSelectEntry(entry, 'range')
+      return
+    }
+    if (event.metaKey || event.ctrlKey) {
+      onSelectEntry(entry, 'toggle')
+      return
+    }
+    onSelectEntry(entry, 'single')
+  }
+
+  return (
+    <section className={isDropActive ? 'browser-pane drop-active' : 'browser-pane'}>
+      <div className="browser-toolbar">
+        <div className="breadcrumbs">
+          <button type="button" onClick={() => onSetPrefix('')} disabled={!bucket}>
+            {bucket || 'No bucket'}
+          </button>
+          {breadcrumbs.map((crumb) => (
+            <span key={crumb.prefix} className="crumb">
+              <ChevronRight size={15} />
+              <button type="button" onClick={() => onSetPrefix(crumb.prefix)}>
+                {crumb.label}
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="toolbar-actions">
+          <span className="current-folder">{currentFolderLabel(prefix)}</span>
+          <button type="button" className="tool-button" onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>
+            <Upload size={16} />
+            Files
+          </button>
+          <button type="button" className="tool-button" onClick={onUploadFolders} disabled={!bucket || Boolean(busy)}>
+            <Folder size={16} />
+            Folder
+          </button>
+          <button type="button" className="tool-button" onClick={onDownload} disabled={!hasSelectedEntry || Boolean(busy)}>
+            <Download size={16} />
+            {selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}
+          </button>
+          <button type="button" className="tool-button danger" onClick={onDelete} disabled={!hasSelectedEntry || Boolean(busy)}>
+            <Trash2 size={16} />
+            {selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}
+          </button>
+          <button type="button" className="icon-button" onClick={onRefresh} disabled={!bucket || loadingObjects} title="Refresh objects">
+            <RefreshCw size={18} className={loadingObjects ? 'spin' : undefined} />
+          </button>
+        </div>
+      </div>
+
+      <div className="object-filter-row">
+        <label className="search-box">
+          <Search size={16} />
+          <input value={objectFilter} onChange={(event) => onFilterChange(event.target.value)} placeholder="Filter this folder" />
+        </label>
+        <span>
+          {objects.length} item{objects.length === 1 ? '' : 's'}
+          {selectedEntries.length > 1 ? `, ${selectedEntries.length} selected` : ''}
+        </span>
+      </div>
+
+      <div className="object-table-wrap" tabIndex={0} onKeyDown={handleKeyDown} aria-label="S3 objects">
+        <table className="object-table">
+          <thead>
+            <tr>
+              <th className="select-cell">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  disabled={filteredObjects.length === 0}
+                  onChange={toggleAllVisible}
+                  title="Select all visible items"
+                />
+              </th>
+              <th>Name</th>
+              <th>Size</th>
+              <th>Modified</th>
+              <th>Storage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredObjects.map((entry) => {
+              const isSelected = selectedIds.has(entryId(entry))
+              const isFocused = Boolean(selectedEntry && selectedEntry.key === entry.key && selectedEntry.kind === entry.kind)
+              return (
+                <tr
+                  key={`${entry.kind}:${entry.key}`}
+                  ref={isFocused ? selectedRowRef : undefined}
+                  className={isSelected ? (isFocused ? 'selected focused' : 'selected') : undefined}
+                  onClick={(event) => handleRowClick(event, entry)}
+                  onDoubleClick={() => onActivateEntry(entry)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    onContextMenu(entry, event.clientX, event.clientY)
+                  }}
+                  aria-selected={isSelected}
+                >
+                  <td className="select-cell">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onSelectEntry(entry, 'toggle')}
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`Select ${entry.name}`}
+                    />
+                  </td>
+                  <td>
+                    <span className="object-name">
+                      {entry.kind === 'folder' ? <Folder size={17} /> : <File size={17} />}
+                      {entry.name}
+                    </span>
+                  </td>
+                  <td>{entry.kind === 'folder' ? '-' : formatBytes(entry.size)}</td>
+                  <td>{entry.kind === 'folder' ? '-' : formatDate(entry.last_modified)}</td>
+                  <td>{entry.storage_class || '-'}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+        {loadingObjects ? (
+          <div className="table-overlay">
+            <Loader2 className="spin" size={24} />
+          </div>
+        ) : null}
+        {!loadingObjects && filteredObjects.length === 0 ? (
+          <div className="empty-state table-empty">
+            <Upload size={22} />
+            <span>No objects in this folder. Drop files or folders here.</span>
+          </div>
+        ) : null}
+        {isDropActive ? (
+          <div className="drop-overlay">
+            <Upload size={28} />
+            <span>Drop to upload into {currentFolderLabel(prefix)}</span>
+          </div>
+        ) : null}
+      </div>
+
+      {nextToken ? (
+        <button type="button" className="load-more" onClick={onLoadMore} disabled={loadingObjects}>
+          Load more
+        </button>
+      ) : null}
+    </section>
+  )
+}
+
+function entryId(entry: S3Entry) {
+  return `${entry.kind}:${entry.key}`
+}
