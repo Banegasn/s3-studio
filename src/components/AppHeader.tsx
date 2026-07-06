@@ -35,7 +35,7 @@ export function AppHeader({
           <img src={appIcon} alt="" />
         </div>
         <div>
-          <h1>S3 CloudFront Studio</h1>
+          <h1>S3 Studio</h1>
         </div>
       </div>
 

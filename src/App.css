@@ -159,7 +159,7 @@ button:disabled {
 .details-pane {
   border-right: 0;
   display: grid;
-  grid-template-rows: auto minmax(220px, 260px) auto auto;
+  grid-template-rows: auto minmax(260px, 340px) auto auto;
   gap: 14px;
   align-content: start;
   overflow-y: auto;
@@ -387,6 +387,11 @@ button:disabled {
   color: #3c4b35;
 }
 
+.icon-button.compact {
+  width: 30px;
+  height: 30px;
+}
+
 .icon-button.active-toggle {
   border-color: #9bb98f;
   background: #e4f0de;
@@ -599,13 +604,58 @@ button:disabled {
   border: 0;
 }
 
-.object-preview-text {
-  margin: 0;
-  padding: 12px;
-  overflow: auto;
-  color: #182015;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  white-space: pre-wrap;
+.object-editor {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 34px 1fr;
+}
+
+.object-editor-toolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  border-bottom: 1px solid #d8ddd2;
+  background: #f7f9f4;
+}
+
+.object-editor-toolbar span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #56614f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.object-editor-toolbar strong {
+  color: #7a5217;
+  font-size: 11px;
+}
+
+.editor-fullscreen-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  padding: 18px;
+  background: rgba(28, 34, 25, 0.34);
+}
+
+.editor-fullscreen {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  border: 1px solid #cfd8c4;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgba(30, 37, 27, 0.22);
 }
 
 .detail-grid {
@@ -685,6 +735,13 @@ button:disabled {
   align-items: end;
 }
 
+.permission-editor.compact {
+  padding: 10px;
+  border: 1px solid #d8ddd2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .permission-editor label,
 .permission-block {
   min-width: 0;
@@ -707,13 +764,12 @@ button:disabled {
   line-height: 1.35;
 }
 
-.permission-overview {
+.permission-meta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
-.permission-status,
 .permission-fact,
 .permission-note {
   min-width: 0;
@@ -725,26 +781,6 @@ button:disabled {
   background: #ffffff;
 }
 
-.permission-status {
-  grid-column: 1 / -1;
-}
-
-.permission-status.good {
-  border-color: #b9d8c1;
-  background: #edf8f0;
-}
-
-.permission-status.warning {
-  border-color: #e0b191;
-  background: #fff0e6;
-}
-
-.permission-status.review {
-  border-color: #c4d6e8;
-  background: #eef5fc;
-}
-
-.permission-status strong,
 .permission-fact strong {
   min-width: 0;
   overflow: hidden;
@@ -754,7 +790,6 @@ button:disabled {
   font-size: 13px;
 }
 
-.permission-status span,
 .permission-fact span,
 .permission-note {
   color: #687160;
@@ -882,13 +917,82 @@ button:disabled {
   font-weight: 700;
 }
 
-.grant-list,
+.acl-table-card {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid #d8ddd2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.acl-table {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.acl-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(96px, 0.8fr) minmax(120px, 0.9fr) minmax(130px, 1.3fr) 30px;
+  gap: 5px;
+  align-items: center;
+  padding: 5px;
+  border-radius: 6px;
+  border: 1px solid #e0e6da;
+  background: #f7f9f4;
+}
+
+.acl-row.public {
+  border-color: #e0b191;
+  background: #fff3eb;
+}
+
+.acl-row.authenticated {
+  border-color: #d7c586;
+  background: #fff9dc;
+}
+
+.acl-row.full {
+  border-color: #bad8c1;
+  background: #edf8f0;
+}
+
+.acl-row.acl-head {
+  min-height: 24px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: #687160;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.acl-row select,
+.acl-row input {
+  width: 100%;
+  height: 30px;
+  font-size: 12px;
+}
+
+.acl-row button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #eef2e9;
+  color: #7a3624;
+}
+
 .sample-list {
   display: grid;
   gap: 6px;
 }
 
-.grant-row,
 .sample-row {
   min-width: 0;
   display: grid;
@@ -906,13 +1010,11 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.grant-row span,
 .sample-row strong {
   font-weight: 800;
   color: #385d83;
 }
 
-.grant-row strong,
 .sample-row span {
   min-width: 0;
   overflow: hidden;
@@ -939,8 +1041,8 @@ button:disabled {
 
 .distribution-item {
   display: grid;
-  gap: 9px;
-  padding: 12px;
+  gap: 7px;
+  padding: 9px;
   border: 1px solid #d8ddd2;
   border-radius: 8px;
   background: #ffffff;
@@ -1002,15 +1104,59 @@ button:disabled {
   gap: 6px;
 }
 
+.url-copy-list {
+  display: grid;
+  gap: 4px;
+}
+
+.copy-url-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 5px;
+  border-radius: 6px;
+  background: #f3f6ef;
+}
+
+.copy-url-row span {
+  color: #687160;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.copy-url-row code {
+  min-width: 0;
+  overflow: hidden;
+  color: #253224;
+  word-break: break-word;  
+  font: 11px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.copy-url-row button {
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #e8eee2;
+  color: #315d88;
+}
+
 .path-editor input {
   width: 100%;
 }
 
-.distribution-actions {
+.distribution-actions,
+.dialog-path-actions {
   justify-content: flex-end;
 }
 
-.distribution-actions button {
+.distribution-actions button,
+.dialog-path-actions button {
   min-height: 30px;
   padding: 0 9px;
   border-radius: 6px;
@@ -1018,6 +1164,12 @@ button:disabled {
   color: #38432f;
   font-size: 12px;
   font-weight: 700;
+}
+
+.dialog-path-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .distribution-actions .primary-action {
@@ -1307,7 +1459,6 @@ button:disabled {
 input,
 textarea,
 pre,
-.object-preview-text,
 .object-preview-frame {
   user-select: text;
 }

@@ -1,33 +1,26 @@
-import { AlertCircle, ChevronDown, Save, ShieldCheck, Trash2 } from 'lucide-react'
-import type { PermissionGrant, PermissionOwner, PrefixObjectPermissions, PublicAccessBlock } from '../types'
+import { useEffect, useState } from 'react'
+import { AlertCircle, ChevronDown, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
+import type { PermissionGrant, PrefixObjectPermissions, PublicAccessBlock } from '../types'
 
-const BUCKET_ACLS = [
-  { value: 'private', label: 'Private', description: 'Only the owner account has access unless IAM or bucket policy allows more.' },
-  { value: 'public-read', label: 'Public read', description: 'Anyone on the internet may read. Writes stay private.' },
-  { value: 'public-read-write', label: 'Public read/write', description: 'Anyone may read and write. Use only for temporary testing.' },
-  { value: 'authenticated-read', label: 'AWS authenticated read', description: 'Any signed-in AWS account may read.' },
-]
-
-const OBJECT_ACLS = [
-  ...BUCKET_ACLS,
-  { value: 'bucket-owner-read', label: 'Bucket owner read', description: 'The bucket owner can read this object.' },
-  { value: 'bucket-owner-full-control', label: 'Bucket owner full control', description: 'The bucket owner can read and manage this object.' },
+const PERMISSIONS = ['READ', 'WRITE', 'READ_ACP', 'WRITE_ACP', 'FULL_CONTROL']
+const GRANTEE_TYPES = ['CanonicalUser', 'Group', 'AmazonCustomerByEmail']
+const GROUPS = [
+  { label: 'Everyone', value: 'http://acs.amazonaws.com/groups/global/AllUsers' },
+  { label: 'AWS authenticated users', value: 'http://acs.amazonaws.com/groups/global/AuthenticatedUsers' },
+  { label: 'Log delivery', value: 'http://acs.amazonaws.com/groups/s3/LogDelivery' },
 ]
 
 type Props = {
   kind: 'bucket' | 'folder' | 'object'
-  owner?: PermissionOwner
   grants: PermissionGrant[]
   errors: string[]
-  aclValue: string
   disabled?: boolean
   objectCount?: number
   sampledObjects?: PrefixObjectPermissions[]
   objectOwnership?: string[]
   publicAccessBlock?: PublicAccessBlock
   bucketPolicy?: string
-  onAclChange: (value: string) => void
-  onApplyAcl: () => void
+  onSaveAclGrants: (grants: PermissionGrant[]) => void
   onPublicAccessBlockChange?: (value: PublicAccessBlock) => void
   onSavePublicAccessBlock?: () => void
   onBucketPolicyChange?: (value: string) => void
@@ -37,125 +30,230 @@ type Props = {
 
 export function PermissionsPanel({
   kind,
-  owner,
   grants,
   errors,
-  aclValue,
   disabled,
   objectCount,
   sampledObjects,
   objectOwnership,
   publicAccessBlock,
   bucketPolicy,
-  onAclChange,
-  onApplyAcl,
+  onSaveAclGrants,
   onPublicAccessBlockChange,
   onSavePublicAccessBlock,
   onBucketPolicyChange,
   onSaveBucketPolicy,
   onDeleteBucketPolicy,
 }: Props) {
-  const aclOptions = kind === 'bucket' ? BUCKET_ACLS : OBJECT_ACLS
-  const selectedAcl = aclOptions.find((option) => option.value === aclValue) ?? aclOptions[0]
-  const status = accessStatus(kind, grants, publicAccessBlock, bucketPolicy)
+  const [draftGrants, setDraftGrants] = useState<PermissionGrant[]>(grants)
   const publicBlockCount = publicAccessBlock ? Object.values(publicAccessBlock).filter(Boolean).length : 0
+  const hasMoreAwsSettings = kind === 'bucket' || Boolean(sampledObjects && sampledObjects.length > 0)
+
+  useEffect(() => {
+    setDraftGrants(grants)
+  }, [grants])
+
+  function updateGrant(index: number, nextGrant: PermissionGrant) {
+    setDraftGrants((current) => current.map((grant, grantIndex) => (grantIndex === index ? nextGrant : grant)))
+  }
+
+  function addGrant() {
+    setDraftGrants((current) => [
+      ...current,
+      {
+        permission: 'READ',
+        grantee_type: 'CanonicalUser',
+        id: '',
+      },
+    ])
+  }
+
+  function removeGrant(index: number) {
+    setDraftGrants((current) => current.filter((_, grantIndex) => grantIndex !== index))
+  }
 
   return (
     <section className="permissions-panel">
       <div className="section-heading">
         <ShieldCheck size={18} />
         <h3>Permissions</h3>
-        {objectCount !== undefined ? <span>{objectCount}</span> : null}
-      </div>
-
-      <div className="permission-overview">
-        <div className={`permission-status ${status.tone}`}>
-          <strong>{status.label}</strong>
-          <span>{status.description}</span>
-        </div>
-        <div className="permission-fact">
-          <span>Owner</span>
-          <strong>{owner?.display_name || compactId(owner?.id) || '-'}</strong>
-        </div>
-        {kind === 'bucket' ? (
-          <>
-            <div className="permission-fact">
-              <span>Public guardrails</span>
-              <strong>{publicAccessBlock ? `${publicBlockCount}/4 enabled` : 'Not configured'}</strong>
-            </div>
-            <div className="permission-fact">
-              <span>Bucket policy</span>
-              <strong>{bucketPolicy ? 'Configured' : 'None'}</strong>
-            </div>
-          </>
-        ) : null}
-        {kind === 'folder' ? (
-          <div className="permission-fact">
-            <span>Applies to</span>
-            <strong>{objectCount ?? 0} object{objectCount === 1 ? '' : 's'}</strong>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="permission-editor">
-        <label>
-          <span>Access preset</span>
-          <select value={aclValue} onChange={(event) => onAclChange(event.target.value)} disabled={disabled}>
-            {aclOptions.map((acl) => (
-              <option key={acl.value} value={acl.value}>
-                {acl.label}
-              </option>
-            ))}
-          </select>
-          <small>{selectedAcl.description}</small>
-        </label>
-        <button type="button" className="primary-action" onClick={onApplyAcl} disabled={disabled}>
-          <Save size={15} />
-          Apply
-        </button>
+        <span>{draftGrants.length}</span>
       </div>
 
       {kind === 'folder' ? (
         <div className="permission-note">
-          S3 folders are prefixes. Applying a preset here updates every object currently under this prefix.
+          S3 folders are prefixes. Saving this table applies it to {objectCount ?? 0} object{objectCount === 1 ? '' : 's'} currently under this prefix.
         </div>
       ) : null}
 
-      {kind === 'bucket' ? (
-        <BucketGuardrailsSummary
-          value={publicAccessBlock}
-          disabled={disabled}
-          onChange={onPublicAccessBlockChange}
-          onSave={onSavePublicAccessBlock}
-        />
-      ) : null}
-
-      <details className="advanced-permissions">
-        <summary>
-          <ChevronDown size={15} />
-          Advanced AWS details
-        </summary>
-        <div className="advanced-permissions-body">
-          {kind === 'bucket' ? (
-            <>
-              <BucketPolicyEditor
-                value={bucketPolicy || ''}
-                disabled={disabled}
-                onChange={onBucketPolicyChange}
-                onSave={onSaveBucketPolicy}
-                onDelete={onDeleteBucketPolicy}
-              />
-              <OwnershipList values={objectOwnership || []} />
-            </>
-          ) : null}
-          <GrantList grants={grants} />
-          {sampledObjects && sampledObjects.length > 0 ? <SampledObjectGrants objects={sampledObjects} /> : null}
+      <div className="acl-table-card">
+        <div className="permission-block-heading">
+          <strong>ACL grants</strong>
+          <div className="permission-actions">
+            <button type="button" onClick={addGrant} disabled={disabled}>
+              <Plus size={15} />
+              Add
+            </button>
+            <button type="button" className="primary-action" onClick={() => onSaveAclGrants(draftGrants)} disabled={disabled}>
+              <Save size={15} />
+              Save
+            </button>
+          </div>
         </div>
-      </details>
+        <div className="acl-table">
+          <div className="acl-row acl-head">
+            <span>Permission</span>
+            <span>Grantee</span>
+            <span>Value</span>
+            <span />
+          </div>
+          {draftGrants.map((grant, index) => (
+            <AclGrantRow
+              key={`${grant.permission || 'grant'}:${grant.id || grant.uri || grant.email_address || index}`}
+              grant={grant}
+              disabled={disabled}
+              onChange={(nextGrant) => updateGrant(index, nextGrant)}
+              onRemove={() => removeGrant(index)}
+            />
+          ))}
+          {draftGrants.length === 0 ? <div className="empty-state compact">No ACL grants found</div> : null}
+        </div>
+      </div>
+
+      {hasMoreAwsSettings ? (
+        <details className="advanced-permissions">
+          <summary>
+            <ChevronDown size={15} />
+            More AWS access settings
+          </summary>
+          <div className="advanced-permissions-body">
+            {kind === 'bucket' ? (
+              <>
+                <div className="permission-meta-grid">
+                  <div className="permission-fact">
+                    <span>Public guardrails</span>
+                    <strong>{publicAccessBlock ? `${publicBlockCount}/4 enabled` : 'Not configured'}</strong>
+                  </div>
+                  <div className="permission-fact">
+                    <span>Bucket policy</span>
+                    <strong>{bucketPolicy ? 'Configured' : 'None'}</strong>
+                  </div>
+                </div>
+                <BucketGuardrailsSummary
+                  value={publicAccessBlock}
+                  disabled={disabled}
+                  onChange={onPublicAccessBlockChange}
+                  onSave={onSavePublicAccessBlock}
+                />
+                <BucketPolicyEditor
+                  value={bucketPolicy || ''}
+                  disabled={disabled}
+                  onChange={onBucketPolicyChange}
+                  onSave={onSaveBucketPolicy}
+                  onDelete={onDeleteBucketPolicy}
+                />
+                <OwnershipList values={objectOwnership || []} />
+              </>
+            ) : null}
+            {sampledObjects && sampledObjects.length > 0 ? <SampledObjectGrants objects={sampledObjects} /> : null}
+          </div>
+        </details>
+      ) : null}
 
       <PermissionErrors errors={errors} />
     </section>
   )
+}
+
+function AclGrantRow({
+  grant,
+  disabled,
+  onChange,
+  onRemove,
+}: {
+  grant: PermissionGrant
+  disabled?: boolean
+  onChange: (grant: PermissionGrant) => void
+  onRemove: () => void
+}) {
+  const granteeType = grant.grantee_type || 'CanonicalUser'
+  const value = granteeValue(grant)
+
+  function updateType(nextType: string) {
+    if (nextType === 'Group') {
+      onChange({ permission: grant.permission, grantee_type: nextType, uri: GROUPS[0].value })
+      return
+    }
+    if (nextType === 'AmazonCustomerByEmail') {
+      onChange({ permission: grant.permission, grantee_type: nextType, email_address: '' })
+      return
+    }
+    onChange({ permission: grant.permission, grantee_type: nextType, id: '' })
+  }
+
+  function updateValue(nextValue: string) {
+    if (granteeType === 'Group') {
+      onChange({ ...grant, uri: nextValue })
+      return
+    }
+    if (granteeType === 'AmazonCustomerByEmail') {
+      onChange({ ...grant, email_address: nextValue })
+      return
+    }
+    onChange({ ...grant, id: nextValue })
+  }
+
+  return (
+    <div className={`acl-row ${grantTone(grant)}`}>
+      <select value={grant.permission || 'READ'} onChange={(event) => onChange({ ...grant, permission: event.target.value })} disabled={disabled}>
+        {PERMISSIONS.map((permission) => (
+          <option key={permission} value={permission}>
+            {friendlyPermission(permission)}
+          </option>
+        ))}
+      </select>
+      <select value={granteeType} onChange={(event) => updateType(event.target.value)} disabled={disabled}>
+        {GRANTEE_TYPES.map((type) => (
+          <option key={type} value={type}>
+            {friendlyGranteeType(type)}
+          </option>
+        ))}
+      </select>
+      {granteeType === 'Group' ? (
+        <select value={value} onChange={(event) => updateValue(event.target.value)} disabled={disabled}>
+          {GROUPS.map((group) => (
+            <option key={group.value} value={group.value}>
+              {group.label}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input value={value} onChange={(event) => updateValue(event.target.value)} disabled={disabled} placeholder={granteeType === 'AmazonCustomerByEmail' ? 'name@example.com' : 'Canonical user ID'} />
+      )}
+      <button type="button" onClick={onRemove} disabled={disabled} title="Remove ACL grant">
+        <Trash2 size={15} />
+      </button>
+    </div>
+  )
+}
+
+function granteeValue(grant: PermissionGrant) {
+  if ((grant.grantee_type || 'CanonicalUser') === 'Group') return grant.uri || ''
+  if (grant.grantee_type === 'AmazonCustomerByEmail') return grant.email_address || ''
+  return grant.id || ''
+}
+
+function grantTone(grant: PermissionGrant) {
+  if (grant.uri?.includes('AllUsers')) return 'public'
+  if (grant.uri?.includes('AuthenticatedUsers')) return 'authenticated'
+  if (grant.permission === 'FULL_CONTROL') return 'full'
+  return 'standard'
+}
+
+function friendlyGranteeType(value: string) {
+  if (value === 'CanonicalUser') return 'Canonical user'
+  if (value === 'AmazonCustomerByEmail') return 'Email'
+  return value
 }
 
 function BucketGuardrailsSummary({
@@ -260,23 +358,6 @@ function OwnershipList({ values }: { values: string[] }) {
   )
 }
 
-function GrantList({ grants }: { grants: PermissionGrant[] }) {
-  return (
-    <div className="permission-block compact">
-      <strong>ACL grants</strong>
-      <div className="grant-list">
-        {grants.map((grant, index) => (
-          <div className="grant-row" key={`${grant.permission || 'grant'}:${grant.id || grant.uri || index}`}>
-            <span>{friendlyPermission(grant.permission)}</span>
-            <strong>{friendlyGrantee(grant)}</strong>
-          </div>
-        ))}
-        {grants.length === 0 ? <div className="empty-state compact">No ACL grants found</div> : null}
-      </div>
-    </div>
-  )
-}
-
 function SampledObjectGrants({ objects }: { objects: PrefixObjectPermissions[] }) {
   return (
     <div className="permission-block compact">
@@ -307,55 +388,6 @@ function PermissionErrors({ errors }: { errors: string[] }) {
   )
 }
 
-function accessStatus(kind: Props['kind'], grants: PermissionGrant[], publicAccessBlock?: PublicAccessBlock, bucketPolicy?: string) {
-  const hasPublicAcl = grants.some(isPublicGrant)
-  const hasPolicy = Boolean(bucketPolicy?.trim())
-  const publicBlockCount = publicAccessBlock ? Object.values(publicAccessBlock).filter(Boolean).length : 0
-
-  if (kind === 'folder') {
-    return {
-      tone: hasPublicAcl ? 'warning' : 'neutral',
-      label: hasPublicAcl ? 'Some objects may be public' : 'Prefix permissions sampled',
-      description: 'S3 has no real folder permission. The app checks objects under this prefix.',
-    }
-  }
-
-  if (hasPublicAcl) {
-    return {
-      tone: 'warning',
-      label: 'Public ACL found',
-      description: 'At least one ACL grants access outside the owner account.',
-    }
-  }
-
-  if (kind === 'bucket' && hasPolicy) {
-    return {
-      tone: 'review',
-      label: 'Bucket policy configured',
-      description: 'A JSON policy can allow or deny access. Review it in advanced details.',
-    }
-  }
-
-  if (kind === 'bucket' && publicBlockCount === 4) {
-    return {
-      tone: 'good',
-      label: 'Public access blocked',
-      description: 'All S3 public access guardrails are enabled for this bucket.',
-    }
-  }
-
-  return {
-    tone: 'neutral',
-    label: 'No public ACL detected',
-    description: 'Access may still be affected by IAM, bucket policy, or CloudFront.',
-  }
-}
-
-function isPublicGrant(grant: PermissionGrant) {
-  const uri = grant.uri || ''
-  return uri.includes('AllUsers') || uri.includes('AuthenticatedUsers')
-}
-
 function friendlyPermission(value?: string) {
   if (!value) return '-'
   return value
@@ -365,18 +397,6 @@ function friendlyPermission(value?: string) {
     .join(' ')
 }
 
-function friendlyGrantee(grant: PermissionGrant) {
-  if (grant.uri?.includes('AllUsers')) return 'Everyone on the internet'
-  if (grant.uri?.includes('AuthenticatedUsers')) return 'Any AWS authenticated user'
-  return grant.display_name || grant.email_address || compactId(grant.id) || grant.grantee_type || '-'
-}
-
 function friendlyOwnership(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2')
-}
-
-function compactId(value?: string) {
-  if (!value) return undefined
-  if (value.length <= 16) return value
-  return `${value.slice(0, 8)}...${value.slice(-6)}`
 }

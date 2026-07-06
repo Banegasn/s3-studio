@@ -6,6 +6,7 @@ export type InvalidationDialogState = {
   links: LinkedDistribution[]
   selected: Record<string, boolean>
   paths: Record<string, string>
+  presets?: Record<string, { object: string; folder: string }>
 }
 
 type Props = {
@@ -45,6 +46,16 @@ export function InvalidationDialog({ state, busy, onClose, onToggle, onPathChang
                 <span>{link.aliases[0] || link.domain_name}</span>
                 <span>{link.status || (link.enabled ? 'Enabled' : 'Disabled')}</span>
               </div>
+              {state.presets?.[link.id] ? (
+                <div className="dialog-path-actions">
+                  <button type="button" onClick={() => onPathChange(link.id, state.presets?.[link.id]?.object || link.invalidation_path)}>
+                    Object
+                  </button>
+                  <button type="button" onClick={() => onPathChange(link.id, state.presets?.[link.id]?.folder || link.invalidation_path)}>
+                    Folder *
+                  </button>
+                </div>
+              ) : null}
               <label className="path-editor">
                 <span>Invalidation paths</span>
                 <textarea value={state.paths[link.id] || link.invalidation_path} onChange={(event) => onPathChange(link.id, event.target.value)} />

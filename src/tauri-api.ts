@@ -13,6 +13,7 @@ import type {
   ObjectMetadata,
   ObjectPermissions,
   ObjectPreview,
+  PermissionGrant,
   PermissionUpdateResult,
   PrefixPermissions,
   PublicAccessBlock,
@@ -61,6 +62,17 @@ export function getObjectPreview(
   },
 ) {
   return invoke<ObjectPreview>('get_object_preview', context)
+}
+
+export function saveObjectText(
+  context: AwsContext & {
+    bucket: string
+    key: string
+    text: string
+    contentType?: string
+  },
+) {
+  return invoke<UploadResult>('save_object_text', context)
 }
 
 export function downloadObject(
@@ -174,6 +186,15 @@ export function setBucketCannedAcl(
   return invoke<PermissionUpdateResult>('set_bucket_canned_acl', context)
 }
 
+export function setBucketAclGrants(
+  context: AwsContext & {
+    bucket: string
+    grants: PermissionGrant[]
+  },
+) {
+  return invoke<PermissionUpdateResult>('set_bucket_acl_grants', context)
+}
+
 export function setObjectCannedAcl(
   context: AwsContext & {
     bucket: string
@@ -184,6 +205,16 @@ export function setObjectCannedAcl(
   return invoke<PermissionUpdateResult>('set_object_canned_acl', context)
 }
 
+export function setObjectAclGrants(
+  context: AwsContext & {
+    bucket: string
+    key: string
+    grants: PermissionGrant[]
+  },
+) {
+  return invoke<PermissionUpdateResult>('set_object_acl_grants', context)
+}
+
 export function setPrefixCannedAcl(
   context: AwsContext & {
     bucket: string
@@ -192,6 +223,16 @@ export function setPrefixCannedAcl(
   },
 ) {
   return invoke<PermissionUpdateResult>('set_prefix_canned_acl', context)
+}
+
+export function setPrefixAclGrants(
+  context: AwsContext & {
+    bucket: string
+    prefix: string
+    grants: PermissionGrant[]
+  },
+) {
+  return invoke<PermissionUpdateResult>('set_prefix_acl_grants', context)
 }
 
 export function setBucketPolicy(

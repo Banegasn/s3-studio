@@ -31,11 +31,12 @@ import {
   listObjects,
   listProfiles,
   openDevtools,
-  setBucketCannedAcl,
+  saveObjectText,
+  setBucketAclGrants,
   setBucketPolicy,
   setBucketPublicAccessBlock,
-  setObjectCannedAcl,
-  setPrefixCannedAcl,
+  setObjectAclGrants,
+  setPrefixAclGrants,
   uploadPaths,
 } from './tauri-api'
 import type {
@@ -46,13 +47,14 @@ import type {
   ObjectMetadata,
   ObjectPermissions,
   ObjectPreview,
+  PermissionGrant,
   PrefixPermissions,
   PublicAccessBlock,
   S3Bucket,
   S3Entry,
   S3EntrySelection,
 } from './types'
-import { DEFAULT_REGION, PREVIEW_LIMIT, errorText, fileNameFromKey } from './utils/format'
+import { DEFAULT_REGION, PREVIEW_LIMIT, errorText, fileNameFromKey, objectParentPrefix } from './utils/format'
 
 const LAST_PROFILE_KEY = 's3-cloudfront-studio:last-profile'
 const LAST_BUCKETS_KEY = 's3-cloudfront-studio:last-buckets'
@@ -143,9 +145,6 @@ function App() {
   const [objectPermissions, setObjectPermissions] = useState<ObjectPermissions | undefined>()
   const [linkedDistributions, setLinkedDistributions] = useState<LinkedDistribution[]>([])
   const [pathOverrides, setPathOverrides] = useState<Record<string, string>>({})
-  const [bucketAclDraft, setBucketAclDraft] = useState('private')
-  const [folderAclDraft, setFolderAclDraft] = useState('private')
-  const [objectAclDraft, setObjectAclDraft] = useState('private')
   const [bucketPolicyDraft, setBucketPolicyDraft] = useState('')
   const [publicAccessBlockDraft, setPublicAccessBlockDraft] = useState<PublicAccessBlock | undefined>()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
@@ -1007,16 +1006,11 @@ function App() {
     }
   }
 
-  async function applyBucketAcl() {
+  async function saveBucketAclGrants(grants: PermissionGrant[]) {
     if (!selectedBucket) return
-    const confirmed = await confirm(`Apply ${bucketAclDraft} to ${selectedBucket}?`, {
-      title: 'Bucket ACL',
-      kind: 'warning',
-    })
-    if (!confirmed) return
     setBusy('Updating bucket ACL')
     try {
-      const result = await setBucketCannedAcl({ ...awsContext, bucket: selectedBucket, acl: bucketAclDraft })
+      const result = await setBucketAclGrants({ ...awsContext, bucket: selectedBucket, grants })
       pushToast('success', result.message)
       await loadBucketDetails()
     } catch (error) {
@@ -1026,16 +1020,11 @@ function App() {
     }
   }
 
-  async function applyObjectAcl() {
+  async function saveObjectAclGrants(grants: PermissionGrant[]) {
     if (!selectedBucket || !selectedObject) return
-    const confirmed = await confirm(`Apply ${objectAclDraft} to ${selectedObject.key}?`, {
-      title: 'Object ACL',
-      kind: 'warning',
-    })
-    if (!confirmed) return
     setBusy('Updating object ACL')
     try {
-      const result = await setObjectCannedAcl({ ...awsContext, bucket: selectedBucket, key: selectedObject.key, acl: objectAclDraft })
+      const result = await setObjectAclGrants({ ...awsContext, bucket: selectedBucket, key: selectedObject.key, grants })
       pushToast('success', result.message)
       await loadObjectDetails(selectedObject)
     } catch (error) {
@@ -1045,20 +1034,40 @@ function App() {
     }
   }
 
-  async function applyFolderAcl() {
+  async function saveFolderAclGrants(grants: PermissionGrant[]) {
     if (!selectedBucket || selectedEntry?.kind !== 'folder') return
-    const confirmed = await confirm(`Apply ${folderAclDraft} to every object under ${selectedEntry.key}?`, {
+    const confirmed = await confirm(`Apply this ACL grant table to every object under ${selectedEntry.key}?`, {
       title: 'Folder ACL',
       kind: 'warning',
     })
     if (!confirmed) return
     setBusy('Updating folder ACLs')
     try {
-      const result = await setPrefixCannedAcl({ ...awsContext, bucket: selectedBucket, prefix: selectedEntry.key, acl: folderAclDraft })
+      const result = await setPrefixAclGrants({ ...awsContext, bucket: selectedBucket, prefix: selectedEntry.key, grants })
       pushToast('success', `Updated ${result.updated} object${result.updated === 1 ? '' : 's'}`)
       await loadFolderDetails(selectedEntry)
     } catch (error) {
       pushToast('error', `Folder ACL update failed: ${errorText(error)}`)
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  async function saveObjectEditorText(text: string) {
+    if (!selectedBucket || !selectedObject) return
+    setBusy('Saving object')
+    try {
+      await saveObjectText({
+        ...awsContext,
+        bucket: selectedBucket,
+        key: selectedObject.key,
+        text,
+        contentType: metadata?.content_type,
+      })
+      pushToast('success', `Saved ${fileNameFromKey(selectedObject.key)}`)
+      await Promise.all([loadObjectDetails(selectedObject), reloadObjectList()])
+    } catch (error) {
+      pushToast('error', `Save failed: ${errorText(error)}`)
     } finally {
       setBusy(undefined)
     }
@@ -1134,24 +1143,14 @@ function App() {
 
   async function handleInvalidate(link: LinkedDistribution) {
     const path = pathOverrides[link.id] || link.invalidation_path
-    const confirmed = await confirm(`Create a CloudFront invalidation for ${path}?`, {
-      title: link.id,
-      kind: 'warning',
+    const folderPath = selectedObject ? `${objectParentPrefix(selectedObject.key)}*`.replace(/^([^/])/, '/$1') : link.invalidation_path
+    setInvalidationDialog({
+      title: `Invalidate ${link.id}`,
+      links: [link],
+      selected: { [link.id]: true },
+      paths: { [link.id]: path },
+      presets: { [link.id]: { object: link.invalidation_path, folder: folderPath } },
     })
-    if (!confirmed) return
-    setBusy(`Invalidating ${link.id}`)
-    try {
-      const result = await createInvalidation({
-        profile: awsContext.profile,
-        distributionId: link.id,
-        paths: [path],
-      })
-      pushToast('success', `Invalidation ${result.invalidation_id || ''} queued for ${link.id}`.trim())
-    } catch (error) {
-      pushToast('error', `Invalidation failed: ${errorText(error)}`)
-    } finally {
-      setBusy(undefined)
-    }
   }
 
   const progressPercent =
@@ -1239,6 +1238,7 @@ function App() {
             {!isDetailsPaneCollapsed ? (
               <DetailsPane
                 selectedBucket={selectedBucket}
+                selectedRegion={region || DEFAULT_REGION}
                 selectedBucketDetails={selectedBucketDetails}
                 selectedEntry={selectedEntry}
                 selectedObject={selectedObject}
@@ -1249,25 +1249,19 @@ function App() {
                 objectPermissions={objectPermissions}
                 linkedDistributions={linkedDistributions}
                 pathOverrides={pathOverrides}
-                bucketAcl={bucketAclDraft}
-                folderAcl={folderAclDraft}
-                objectAcl={objectAclDraft}
                 bucketPolicyDraft={bucketPolicyDraft}
                 publicAccessBlockDraft={publicAccessBlockDraft}
                 loadingDetails={loadingDetails}
                 busy={busy}
-                onBucketAclChange={setBucketAclDraft}
-                onFolderAclChange={setFolderAclDraft}
-                onObjectAclChange={setObjectAclDraft}
-                onApplyBucketAcl={applyBucketAcl}
-                onApplyFolderAcl={applyFolderAcl}
-                onApplyObjectAcl={applyObjectAcl}
+                onSaveBucketAclGrants={saveBucketAclGrants}
+                onSaveFolderAclGrants={saveFolderAclGrants}
+                onSaveObjectAclGrants={saveObjectAclGrants}
+                onSaveObjectText={saveObjectEditorText}
                 onBucketPolicyChange={setBucketPolicyDraft}
                 onSaveBucketPolicy={saveBucketPolicy}
                 onDeleteBucketPolicy={removeBucketPolicy}
                 onPublicAccessBlockChange={setPublicAccessBlockDraft}
                 onSavePublicAccessBlock={savePublicAccessBlock}
-                onPathOverride={(distributionId, value) => setPathOverrides((current) => ({ ...current, [distributionId]: value }))}
                 onInvalidate={handleInvalidate}
               />
             ) : null}

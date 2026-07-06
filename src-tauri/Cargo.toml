@@ -2,7 +2,7 @@
 name = "aws-s3-cloudfront-studio"
 version = "0.1.0"
 description = "Desktop S3 and CloudFront operations console"
-authors = ["S3 CloudFront Studio"]
+authors = ["banegasn"]
 license = "MIT"
 repository = ""
 edition = "2021"

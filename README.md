@@ -1,4 +1,4 @@
-# S3 CloudFront Studio
+# S3 Studio
 
 Cross-platform Tauri desktop app for browsing S3 and invalidating linked CloudFront distributions with local AWS CLI credentials.
 

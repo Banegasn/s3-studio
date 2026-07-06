@@ -164,7 +164,7 @@ pub struct PermissionOwner {
     pub id: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct PermissionGrant {
     pub permission: Option<String>,
     pub grantee_type: Option<String>,

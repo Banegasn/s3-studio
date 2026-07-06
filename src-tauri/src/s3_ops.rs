@@ -12,8 +12,8 @@ use crate::utils::{
 };
 use aws_sdk_s3::primitives::ByteStream;
 use aws_sdk_s3::types::{
-    BucketCannedAcl, Delete, Grant, ObjectCannedAcl, ObjectIdentifier, Owner,
-    PublicAccessBlockConfiguration,
+    AccessControlPolicy, BucketCannedAcl, Delete, Grant, Grantee, ObjectCannedAcl,
+    ObjectIdentifier, Owner, Permission, PublicAccessBlockConfiguration, Type,
 };
 use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
@@ -249,6 +249,36 @@ pub async fn get_object_preview(
         text: None,
         body_base64: None,
         truncated,
+    })
+}
+
+#[tauri::command]
+pub async fn save_object_text(
+    profile: String,
+    region: String,
+    bucket: String,
+    key: String,
+    text: String,
+    content_type: Option<String>,
+) -> CommandResult<UploadResult> {
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    let mut request = client
+        .put_object()
+        .bucket(&bucket)
+        .key(&key)
+        .body(ByteStream::from(text.into_bytes()));
+
+    if let Some(content_type) = content_type.filter(|value| !value.trim().is_empty()) {
+        request = request.content_type(content_type);
+    }
+
+    let output = request.send().await.map_err(error_message)?;
+
+    Ok(UploadResult {
+        bucket,
+        key,
+        etag: output.e_tag().map(ToString::to_string),
+        version_id: output.version_id().map(ToString::to_string),
     })
 }
 
@@ -752,6 +782,49 @@ pub async fn set_bucket_canned_acl(
 }
 
 #[tauri::command]
+pub async fn set_bucket_acl_grants(
+    profile: String,
+    region: String,
+    bucket: String,
+    grants: Vec<PermissionGrant>,
+) -> CommandResult<PermissionUpdateResult> {
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    let current = client
+        .get_bucket_acl()
+        .bucket(&bucket)
+        .send()
+        .await
+        .map_err(error_message)?;
+    let owner = current
+        .owner()
+        .cloned()
+        .ok_or_else(|| "Bucket ACL owner is required by AWS but was not returned".to_string())?;
+    let next_grants = build_acl_grants(&grants)?;
+
+    client
+        .put_bucket_acl()
+        .bucket(&bucket)
+        .access_control_policy(
+            AccessControlPolicy::builder()
+                .owner(owner)
+                .set_grants(Some(next_grants))
+                .build(),
+        )
+        .send()
+        .await
+        .map_err(error_message)?;
+
+    Ok(PermissionUpdateResult {
+        bucket,
+        key: None,
+        prefix: None,
+        acl: None,
+        updated: 1,
+        message: "Bucket ACL grants updated".to_string(),
+    })
+}
+
+#[tauri::command]
 pub async fn set_object_canned_acl(
     profile: String,
     region: String,
@@ -777,6 +850,27 @@ pub async fn set_object_canned_acl(
         acl: Some(acl),
         updated: 1,
         message: "Object ACL updated".to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn set_object_acl_grants(
+    profile: String,
+    region: String,
+    bucket: String,
+    key: String,
+    grants: Vec<PermissionGrant>,
+) -> CommandResult<PermissionUpdateResult> {
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    put_object_acl_grants(&client, &bucket, &key, &grants).await?;
+
+    Ok(PermissionUpdateResult {
+        bucket,
+        key: Some(key),
+        prefix: None,
+        acl: None,
+        updated: 1,
+        message: "Object ACL grants updated".to_string(),
     })
 }
 
@@ -816,6 +910,37 @@ pub async fn set_prefix_canned_acl(
         acl: Some(acl),
         updated,
         message: "Folder object ACLs updated".to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn set_prefix_acl_grants(
+    profile: String,
+    region: String,
+    bucket: String,
+    prefix: String,
+    grants: Vec<PermissionGrant>,
+) -> CommandResult<PermissionUpdateResult> {
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    let normalized_prefix = normalize_prefix(&prefix);
+    let keys = list_keys_for_prefix(&client, &bucket, &normalized_prefix).await?;
+    if keys.is_empty() {
+        return Err("No objects found in this folder".to_string());
+    }
+
+    let mut updated = 0;
+    for key in keys {
+        put_object_acl_grants(&client, &bucket, &key, &grants).await?;
+        updated += 1;
+    }
+
+    Ok(PermissionUpdateResult {
+        bucket,
+        key: None,
+        prefix: Some(normalized_prefix),
+        acl: None,
+        updated,
+        message: "Folder object ACL grants updated".to_string(),
     })
 }
 
@@ -1266,11 +1391,107 @@ async fn object_permissions_for_key(
     }
 }
 
+async fn put_object_acl_grants(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    key: &str,
+    grants: &[PermissionGrant],
+) -> CommandResult<()> {
+    let current = client
+        .get_object_acl()
+        .bucket(bucket)
+        .key(key)
+        .send()
+        .await
+        .map_err(error_message)?;
+    let owner = current
+        .owner()
+        .cloned()
+        .ok_or_else(|| "Object ACL owner is required by AWS but was not returned".to_string())?;
+    let next_grants = build_acl_grants(grants)?;
+
+    client
+        .put_object_acl()
+        .bucket(bucket)
+        .key(key)
+        .access_control_policy(
+            AccessControlPolicy::builder()
+                .owner(owner)
+                .set_grants(Some(next_grants))
+                .build(),
+        )
+        .send()
+        .await
+        .map_err(error_message)?;
+
+    Ok(())
+}
+
 fn owner_summary(owner: Option<&Owner>) -> Option<PermissionOwner> {
     owner.map(|owner| PermissionOwner {
         display_name: owner.display_name().map(ToString::to_string),
         id: owner.id().map(ToString::to_string),
     })
+}
+
+fn build_acl_grants(grants: &[PermissionGrant]) -> CommandResult<Vec<Grant>> {
+    grants
+        .iter()
+        .filter(|grant| grant.permission.as_deref().unwrap_or("").trim() != "")
+        .map(build_acl_grant)
+        .collect()
+}
+
+fn build_acl_grant(grant: &PermissionGrant) -> CommandResult<Grant> {
+    let permission = grant
+        .permission
+        .as_deref()
+        .ok_or_else(|| "ACL permission is required".to_string())
+        .and_then(parse_permission)?;
+    let grantee_type = grant.grantee_type.as_deref().unwrap_or("CanonicalUser");
+    let mut grantee = Grantee::builder().set_display_name(grant.display_name.clone());
+
+    match grantee_type {
+        "CanonicalUser" => {
+            let id = grant
+                .id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "Canonical user grants require an AWS canonical ID".to_string())?;
+            grantee = grantee.r#type(Type::CanonicalUser).id(id);
+        }
+        "AmazonCustomerByEmail" => {
+            let email = grant
+                .email_address
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "Email grants require an email address".to_string())?;
+            grantee = grantee
+                .r#type(Type::AmazonCustomerByEmail)
+                .email_address(email);
+        }
+        "Group" => {
+            let uri = grant
+                .uri
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "Group grants require a group URI".to_string())?;
+            grantee = grantee.r#type(Type::Group).uri(uri);
+        }
+        _ => return Err(format!("Unsupported ACL grantee type: {grantee_type}")),
+    }
+
+    Ok(Grant::builder()
+        .permission(permission)
+        .grantee(grantee.build().map_err(error_message)?)
+        .build())
+}
+
+fn parse_permission(value: &str) -> CommandResult<Permission> {
+    match value {
+        "FULL_CONTROL" | "WRITE" | "WRITE_ACP" | "READ" | "READ_ACP" => Ok(Permission::from(value)),
+        _ => Err(format!("Unsupported ACL permission: {value}")),
+    }
 }
 
 fn grant_summary(grant: &Grant) -> PermissionGrant {
