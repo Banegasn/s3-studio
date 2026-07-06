@@ -13,7 +13,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 16px 20px;
+  padding: 8px 16px;
   border-bottom: 1px solid #d8ddd2;
   background: #fbfcf8;
 }
@@ -68,8 +68,8 @@
 .object-filter-row,
 .distribution-actions {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: end;
+  gap: 8px;
 }
 
 .context-bar label,
@@ -356,6 +356,11 @@ button:disabled {
   gap: 7px;
   border-radius: 6px;
   font-weight: 700;
+}
+
+button.small {
+  height: auto;
+  font-size: 12px;
 }
 
 .tool-button {
@@ -1170,6 +1175,12 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+
+.primary-action {
+  background: #2f5f8f;
+  color: #ffffff;
 }
 
 .distribution-actions .primary-action {

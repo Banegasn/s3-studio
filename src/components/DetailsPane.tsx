@@ -441,9 +441,8 @@ function ObjectPreviewPanel({
         <div className="object-editor-toolbar">
           <span>{editorLanguage(selectedObject.key, preview.content_type)}</span>
           {preview.truncated ? <strong>Preview truncated</strong> : null}
-          <button type="button" className="primary-action" onClick={() => onSave(draft)} disabled={disabled || !dirty || preview.truncated}>
+          <button type="button" className="icon-button compact primary-action" onClick={() => onSave(draft)} disabled={disabled || !dirty || preview.truncated}>
             <Save size={14} />
-            Save
           </button>
           <button type="button" className="icon-button compact" onClick={() => setIsFullscreen(true)} title="Open fullscreen editor">
             <Maximize2 size={14} />
