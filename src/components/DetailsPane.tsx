@@ -328,6 +328,7 @@ function CloudFrontPanel({
               </div>
               <span className={link.enabled ? 'status deployed' : 'status disabled'}>{link.status || (link.enabled ? 'Enabled' : 'Disabled')}</span>
             </div>
+
             <div className="url-copy-list">
               <CopyUrlRow  value={buildCloudFrontUrl(link, pathOverrides[link.id])} />
             </div>
