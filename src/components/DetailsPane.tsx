@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import Editor from '@monaco-editor/react'
-import { AlertCircle, Archive, Boxes, Check, CloudLightning, Copy, ExternalLink, Folder, Image, Loader2, Maximize2, Save, X } from 'lucide-react'
+import { AlertCircle, Archive, Boxes, Check, CloudLightning, Copy, Folder, Image, Loader2, Maximize2, Save, X } from 'lucide-react'
 import type {
   BucketPermissions,
   LinkedDistribution,
