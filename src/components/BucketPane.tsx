@@ -1,5 +1,6 @@
-import { Boxes, Search } from 'lucide-react'
+import { Boxes } from 'lucide-react'
 import type { S3Bucket } from '../types'
+import { SearchBox, PanelHeading, Badge, EmptyState } from './ui'
 
 type Props = {
   buckets: S3Bucket[]
@@ -20,17 +21,12 @@ export function BucketPane({
 }: Props) {
   return (
     <aside className="bucket-pane">
-      <div className="pane-heading">
-        <div>
-          <p className="eyebrow">S3</p>
-          <h2>Buckets</h2>
-        </div>
-        <span className="count-pill">{buckets.length}</span>
-      </div>
-      <label className="search-box">
-        <Search size={16} />
-        <input value={bucketFilter} onChange={(event) => onFilterChange(event.target.value)} placeholder="Filter buckets" />
-      </label>
+      <PanelHeading
+        eyebrow="S3"
+        title="Buckets"
+        action={<Badge>{buckets.length}</Badge>}
+      />
+      <SearchBox value={bucketFilter} onChange={onFilterChange} placeholder="Filter buckets" />
       <div className="bucket-list">
         {filteredBuckets.map((bucket) => (
           <button
@@ -43,7 +39,7 @@ export function BucketPane({
             <span>{bucket.name}</span>
           </button>
         ))}
-        {filteredBuckets.length === 0 ? <div className="empty-state">No buckets</div> : null}
+        {filteredBuckets.length === 0 ? <EmptyState message="No buckets" /> : null}
       </div>
     </aside>
   )

@@ -1,0 +1,62 @@
+/* Base resets and global styles */
+
+:root {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  line-height: 1.45;
+  font-weight: var(--font-weight-normal);
+  letter-spacing: 0;
+  color: var(--color-fg);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  height: 100%;
+  min-height: 100vh;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  letter-spacing: 0;
+  font: inherit;
+}
+
+input,
+textarea,
+pre,
+iframe {
+  user-select: text;
+}
+
+body.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}

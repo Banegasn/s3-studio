@@ -11,6 +11,7 @@ import { ContextMenu, type ContextMenuState } from './components/ContextMenu'
 import { DetailsPane } from './components/DetailsPane'
 import { InvalidationDialog, type InvalidationDialogState } from './components/InvalidationDialog'
 import { ToastStack } from './components/ToastStack'
+import { ProgressBar } from './components/ui'
 import { useToasts } from './hooks/useToasts'
 import {
   createInvalidation,
@@ -1304,15 +1305,13 @@ function App() {
               {progressLabel ? <small>{progressLabel}</small> : null}
             </div>
             {deleteProgress ? (
-              <div
-                className={progressPercent === undefined ? 'progress-track indeterminate' : 'progress-track'}
-                role="progressbar"
+              <ProgressBar
+                percent={progressPercent}
+                indeterminate={progressPercent === undefined}
                 aria-valuemin={0}
                 aria-valuemax={deleteProgress.total || undefined}
                 aria-valuenow={deleteProgress.total ? deleteProgress.deleted : undefined}
-              >
-                <span style={{ width: progressPercent === undefined ? undefined : `${progressPercent}%` }} />
-              </div>
+              />
             ) : null}
           </div>
         </div>

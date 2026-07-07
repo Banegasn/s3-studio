@@ -1,6 +1,8 @@
+import type { ChangeEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { AlertCircle, ChevronDown, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import type { PermissionGrant, PrefixObjectPermissions, PublicAccessBlock } from '../types'
+import { SectionHeading, Button, IconButton, Input, Select, Card, EmptyState, CheckRow } from './ui'
 
 const PERMISSIONS = ['READ', 'WRITE', 'READ_ACP', 'WRITE_ACP', 'FULL_CONTROL']
 const GRANTEE_TYPES = ['CanonicalUser', 'Group', 'AmazonCustomerByEmail']
@@ -74,11 +76,7 @@ export function PermissionsPanel({
 
   return (
     <section className="permissions-panel">
-      <div className="section-heading">
-        <ShieldCheck size={18} />
-        <h3>Permissions</h3>
-        <span>{draftGrants.length}</span>
-      </div>
+      <SectionHeading icon={<ShieldCheck size={18} />} title="Permissions" count={draftGrants.length} />
 
       {kind === 'folder' ? (
         <div className="permission-note">
@@ -86,18 +84,18 @@ export function PermissionsPanel({
         </div>
       ) : null}
 
-      <div className="acl-table-card">
+      <Card className="acl-table-card">
         <div className="permission-block-heading">
           <strong>ACL grants</strong>
           <div className="permission-actions">
-            <button type="button" onClick={addGrant} disabled={disabled}>
+            <Button size="sm" onClick={addGrant} disabled={disabled}>
               <Plus size={15} />
               Add
-            </button>
-            <button type="button" className="primary-action" onClick={() => onSaveAclGrants(draftGrants)} disabled={disabled}>
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => onSaveAclGrants(draftGrants)} disabled={disabled}>
               <Save size={15} />
               Save
-            </button>
+            </Button>
           </div>
         </div>
         <div className="acl-table">
@@ -116,9 +114,9 @@ export function PermissionsPanel({
               onRemove={() => removeGrant(index)}
             />
           ))}
-          {draftGrants.length === 0 ? <div className="empty-state compact">No ACL grants found</div> : null}
+          {draftGrants.length === 0 ? <EmptyState message="No ACL grants found" compact /> : null}
         </div>
-      </div>
+      </Card>
 
       {hasMoreAwsSettings ? (
         <details className="advanced-permissions">
@@ -205,34 +203,34 @@ function AclGrantRow({
 
   return (
     <div className={`acl-row ${grantTone(grant)}`}>
-      <select value={grant.permission || 'READ'} onChange={(event) => onChange({ ...grant, permission: event.target.value })} disabled={disabled}>
+      <Select value={grant.permission || 'READ'} onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange({ ...grant, permission: event.target.value })} disabled={disabled}>
         {PERMISSIONS.map((permission) => (
           <option key={permission} value={permission}>
             {friendlyPermission(permission)}
           </option>
         ))}
-      </select>
-      <select value={granteeType} onChange={(event) => updateType(event.target.value)} disabled={disabled}>
+      </Select>
+      <Select value={granteeType} onChange={(event: ChangeEvent<HTMLSelectElement>) => updateType(event.target.value)} disabled={disabled}>
         {GRANTEE_TYPES.map((type) => (
           <option key={type} value={type}>
             {friendlyGranteeType(type)}
           </option>
         ))}
-      </select>
+      </Select>
       {granteeType === 'Group' ? (
-        <select value={value} onChange={(event) => updateValue(event.target.value)} disabled={disabled}>
+        <Select value={value} onChange={(event: ChangeEvent<HTMLSelectElement>) => updateValue(event.target.value)} disabled={disabled}>
           {GROUPS.map((group) => (
             <option key={group.value} value={group.value}>
               {group.label}
             </option>
           ))}
-        </select>
+        </Select>
       ) : (
-        <input value={value} onChange={(event) => updateValue(event.target.value)} disabled={disabled} placeholder={granteeType === 'AmazonCustomerByEmail' ? 'name@example.com' : 'Canonical user ID'} />
+        <Input value={value} onChange={(event: ChangeEvent<HTMLInputElement>) => updateValue(event.target.value)} disabled={disabled} placeholder={granteeType === 'AmazonCustomerByEmail' ? 'name@example.com' : 'Canonical user ID'} />
       )}
-      <button type="button" onClick={onRemove} disabled={disabled} title="Remove ACL grant">
+      <IconButton onClick={onRemove} disabled={disabled} title="Remove ACL grant">
         <Trash2 size={15} />
-      </button>
+      </IconButton>
     </div>
   )
 }
@@ -281,35 +279,31 @@ function BucketGuardrailsSummary({
   }
 
   return (
-    <div className="permission-block">
+    <Card className="permission-block">
       <div className="permission-block-heading">
         <strong>Public access guardrails</strong>
-        <button type="button" className="primary-action" onClick={onSave} disabled={disabled}>
+        <Button variant="primary" size="sm" onClick={onSave} disabled={disabled}>
           <Save size={15} />
           Save
-        </button>
+        </Button>
       </div>
-      <label className="check-row">
-        <input type="checkbox" checked={Boolean(nextValue.block_public_acls)} onChange={(event) => update('block_public_acls', event.target.checked)} />
+      <CheckRow>
+        <input type="checkbox" checked={Boolean(nextValue.block_public_acls)} onChange={(event: ChangeEvent<HTMLInputElement>) => update('block_public_acls', event.target.checked)} />
         <span>Block new public ACLs</span>
-      </label>
-      <label className="check-row">
-        <input type="checkbox" checked={Boolean(nextValue.ignore_public_acls)} onChange={(event) => update('ignore_public_acls', event.target.checked)} />
+      </CheckRow>
+      <CheckRow>
+        <input type="checkbox" checked={Boolean(nextValue.ignore_public_acls)} onChange={(event: ChangeEvent<HTMLInputElement>) => update('ignore_public_acls', event.target.checked)} />
         <span>Ignore existing public ACLs</span>
-      </label>
-      <label className="check-row">
-        <input type="checkbox" checked={Boolean(nextValue.block_public_policy)} onChange={(event) => update('block_public_policy', event.target.checked)} />
+      </CheckRow>
+      <CheckRow>
+        <input type="checkbox" checked={Boolean(nextValue.block_public_policy)} onChange={(event: ChangeEvent<HTMLInputElement>) => update('block_public_policy', event.target.checked)} />
         <span>Block public bucket policies</span>
-      </label>
-      <label className="check-row">
-        <input
-          type="checkbox"
-          checked={Boolean(nextValue.restrict_public_buckets)}
-          onChange={(event) => update('restrict_public_buckets', event.target.checked)}
-        />
+      </CheckRow>
+      <CheckRow>
+        <input type="checkbox" checked={Boolean(nextValue.restrict_public_buckets)} onChange={(event: ChangeEvent<HTMLInputElement>) => update('restrict_public_buckets', event.target.checked)} />
         <span>Restrict public bucket policies</span>
-      </label>
-    </div>
+      </CheckRow>
+    </Card>
   )
 }
 
@@ -328,39 +322,39 @@ function BucketPolicyEditor({
 }) {
   if (!onChange || !onSave || !onDelete) return null
   return (
-    <div className="permission-block">
+    <Card className="permission-block">
       <div className="permission-block-heading">
         <strong>Bucket policy JSON</strong>
         <div className="permission-actions">
-          <button type="button" onClick={onDelete} disabled={disabled}>
+          <Button size="sm" onClick={onDelete} disabled={disabled}>
             <Trash2 size={15} />
             Delete
-          </button>
-          <button type="button" className="primary-action" onClick={onSave} disabled={disabled || value.trim().length === 0}>
+          </Button>
+          <Button variant="primary" size="sm" onClick={onSave} disabled={disabled || value.trim().length === 0}>
             <Save size={15} />
             Save
-          </button>
+          </Button>
         </div>
       </div>
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} spellCheck={false} />
-    </div>
+      <textarea value={value} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => onChange(event.target.value)} spellCheck={false} />
+    </Card>
   )
 }
 
 function OwnershipList({ values }: { values: string[] }) {
   return (
-    <div className="permission-block compact">
+    <Card className="permission-block compact">
       <strong>Object ownership</strong>
       <div className="pill-list">
         {values.length > 0 ? values.map((value) => <span key={value}>{friendlyOwnership(value)}</span>) : <span>Not configured</span>}
       </div>
-    </div>
+    </Card>
   )
 }
 
 function SampledObjectGrants({ objects }: { objects: PrefixObjectPermissions[] }) {
   return (
-    <div className="permission-block compact">
+    <Card className="permission-block compact">
       <strong>Objects checked in this folder</strong>
       <div className="sample-list">
         {objects.map((object) => (
@@ -370,7 +364,7 @@ function SampledObjectGrants({ objects }: { objects: PrefixObjectPermissions[] }
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 

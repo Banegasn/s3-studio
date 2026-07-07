@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
-import { ChevronRight, Download, File, Folder, Loader2, RefreshCw, Search, Trash2, Upload } from 'lucide-react'
+import { ChevronRight, Download, File, Folder, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
+import { Button, IconButton, SearchBox, EmptyState } from './ui'
 
 export type SelectionMode = 'single' | 'toggle' | 'range'
 
@@ -167,33 +168,30 @@ export function BrowserPane({
         </div>
         <div className="toolbar-actions">
           <span className="current-folder">{currentFolderLabel(prefix)}</span>
-          <button type="button" className="tool-button" onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>
+          <Button onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>
             <Upload size={16} />
             Files
-          </button>
-          <button type="button" className="tool-button" onClick={onUploadFolders} disabled={!bucket || Boolean(busy)}>
+          </Button>
+          <Button onClick={onUploadFolders} disabled={!bucket || Boolean(busy)}>
             <Folder size={16} />
             Folder
-          </button>
-          <button type="button" className="tool-button" onClick={onDownload} disabled={!hasSelectedEntry || Boolean(busy)}>
+          </Button>
+          <Button onClick={onDownload} disabled={!hasSelectedEntry || Boolean(busy)}>
             <Download size={16} />
             {selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}
-          </button>
-          <button type="button" className="tool-button danger" onClick={onDelete} disabled={!hasSelectedEntry || Boolean(busy)}>
+          </Button>
+          <Button variant="danger" onClick={onDelete} disabled={!hasSelectedEntry || Boolean(busy)}>
             <Trash2 size={16} />
             {selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}
-          </button>
-          <button type="button" className="icon-button" onClick={onRefresh} disabled={!bucket || loadingObjects} title="Refresh objects">
+          </Button>
+          <IconButton onClick={onRefresh} disabled={!bucket || loadingObjects} title="Refresh objects">
             <RefreshCw size={18} className={loadingObjects ? 'spin' : undefined} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
       <div className="object-filter-row">
-        <label className="search-box">
-          <Search size={16} />
-          <input value={objectFilter} onChange={(event) => onFilterChange(event.target.value)} placeholder="Filter this folder" />
-        </label>
+        <SearchBox value={objectFilter} onChange={onFilterChange} placeholder="Filter this folder" />
         <span>
           {objects.length} item{objects.length === 1 ? '' : 's'}
           {selectedEntries.length > 1 ? `, ${selectedEntries.length} selected` : ''}
@@ -266,10 +264,7 @@ export function BrowserPane({
           </div>
         ) : null}
         {!loadingObjects && filteredObjects.length === 0 ? (
-          <div className="empty-state table-empty">
-            <Upload size={22} />
-            <span>No objects in this folder. Drop files or folders here.</span>
-          </div>
+          <EmptyState icon={<Upload size={22} />} message="No objects in this folder. Drop files or folders here." />
         ) : null}
         {isDropActive ? (
           <div className="drop-overlay">
@@ -280,9 +275,9 @@ export function BrowserPane({
       </div>
 
       {nextToken ? (
-        <button type="button" className="load-more" onClick={onLoadMore} disabled={loadingObjects}>
+        <Button className="load-more" variant="primary" onClick={onLoadMore} disabled={loadingObjects}>
           Load more
-        </button>
+        </Button>
       ) : null}
     </section>
   )
