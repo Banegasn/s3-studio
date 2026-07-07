@@ -262,6 +262,16 @@ pub async fn save_object_text(
     content_type: Option<String>,
 ) -> CommandResult<UploadResult> {
     let client = s3_bucket_client(&profile, &region, &bucket).await;
+
+    // Best-effort: capture existing ACL so we can re-apply it after overwrite
+    let current_acl = client
+        .get_object_acl()
+        .bucket(&bucket)
+        .key(&key)
+        .send()
+        .await
+        .ok();
+
     let mut request = client
         .put_object()
         .bucket(&bucket)
@@ -273,6 +283,24 @@ pub async fn save_object_text(
     }
 
     let output = request.send().await.map_err(error_message)?;
+
+    // Re-apply ACL if we were able to read it before the overwrite
+    if let Some(acl) = current_acl {
+        if let Some(owner) = acl.owner() {
+            let grants: Vec<Grant> = acl.grants().iter().cloned().collect();
+            let policy = AccessControlPolicy::builder()
+                .owner(owner.clone())
+                .set_grants(Some(grants))
+                .build();
+            let _ = client
+                .put_object_acl()
+                .bucket(&bucket)
+                .key(&key)
+                .access_control_policy(policy)
+                .send()
+                .await;
+        }
+    }
 
     Ok(UploadResult {
         bucket,
@@ -330,6 +358,9 @@ pub async fn download_prefix(
 
     let mut downloaded = 0;
     for key in keys {
+        if key.ends_with('/') {
+            continue;
+        }
         let relative = key
             .strip_prefix(&normalized_prefix)
             .filter(|value| !value.is_empty())
@@ -395,6 +426,9 @@ pub async fn download_entries(
                     .await
                     .map_err(error_message)?;
                 for key in list_keys_for_prefix(&client, &bucket, &normalized_prefix).await? {
+                    if key.ends_with('/') {
+                        continue;
+                    }
                     if !seen_keys.insert(key.clone()) {
                         continue;
                     }
