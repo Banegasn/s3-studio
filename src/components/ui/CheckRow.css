@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
-  color: #333d2d;
+  color: var(--color-fg);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   cursor: pointer;

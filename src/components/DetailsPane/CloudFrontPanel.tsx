@@ -56,14 +56,14 @@ function DistributionItem({ link, pathOverride, onInvalidate, busy }: { link: Li
         </span>
       </div>
 
-      <div className="url-copy-list">
+      <div className="distribution-body">
         <CopyUrlRow value={buildCloudFrontUrl(link, pathOverride)} />
-      </div>
-      <div className="distribution-actions">
-        <Button variant="primary" onClick={onInvalidate} disabled={busy}>
-          <CloudLightning size={15} />
-          Invalidate
-        </Button>
+        <div className="distribution-actions">
+          <Button variant="primary" onClick={onInvalidate} disabled={busy}>
+            <CloudLightning size={15} />
+            Invalidate
+          </Button>
+        </div>
       </div>
     </div>
   )

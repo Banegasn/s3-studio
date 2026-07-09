@@ -7,7 +7,7 @@
   border: 1px solid var(--color-border-input);
   border-radius: var(--radius-sm);
   padding: var(--space-8);
-  color: #172014;
+  color: var(--color-fg);
   font: var(--font-size-sm)/1.45 var(--font-mono);
   outline: none;
 }

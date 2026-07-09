@@ -11,6 +11,10 @@
   user-select: none;
 }
 
+.bucket-pane .search-box {
+  margin: 0 var(--space-8) var(--space-8);
+}
+
 .bucket-list {
   height: auto;
   min-height: 0;
@@ -27,7 +31,7 @@
   padding: var(--space-5) var(--space-8);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #333931;
+  color: var(--color-fg);
   text-align: left;
   cursor: pointer;
   border: 0;
@@ -47,6 +51,6 @@
 
 .bucket-item.active {
   background: var(--color-bg-hover);
-  color: #255934;
+  color: var(--color-panel-strong);
   font-weight: var(--font-weight-semibold);
 }

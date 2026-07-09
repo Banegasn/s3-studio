@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { AlertCircle, ChevronDown, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import type { PermissionGrant, PrefixObjectPermissions, PublicAccessBlock } from '../types'
 import { SectionHeading, Button, IconButton, Input, Select, Card, EmptyState, CheckRow } from './ui'
 import './PermissionsPanel.css'
@@ -24,6 +24,9 @@ type Props = {
   publicAccessBlock?: PublicAccessBlock
   bucketPolicy?: string
   onSaveAclGrants: (grants: PermissionGrant[]) => void
+  onLoadFolderPermissions?: () => void
+  permissionsLoaded?: boolean
+  loadingPermissions?: boolean
   onPublicAccessBlockChange?: (value: PublicAccessBlock) => void
   onSavePublicAccessBlock?: () => void
   onBucketPolicyChange?: (value: string) => void
@@ -42,6 +45,9 @@ export function PermissionsPanel({
   publicAccessBlock,
   bucketPolicy,
   onSaveAclGrants,
+  onLoadFolderPermissions,
+  permissionsLoaded = kind !== 'folder',
+  loadingPermissions,
   onPublicAccessBlockChange,
   onSavePublicAccessBlock,
   onBucketPolicyChange,
@@ -50,7 +56,8 @@ export function PermissionsPanel({
 }: Props) {
   const [draftGrants, setDraftGrants] = useState<PermissionGrant[]>(grants)
   const publicBlockCount = publicAccessBlock ? Object.values(publicAccessBlock).filter(Boolean).length : 0
-  const hasMoreAwsSettings = kind === 'bucket' || Boolean(sampledObjects && sampledObjects.length > 0)
+  const hasMoreAwsSettings = kind === 'bucket' || kind === 'folder' || Boolean(sampledObjects && sampledObjects.length > 0)
+  const showPrimaryAclTable = kind !== 'folder'
 
   useEffect(() => {
     setDraftGrants(grants)
@@ -77,55 +84,65 @@ export function PermissionsPanel({
 
   return (
     <section className="permissions-panel">
-      <SectionHeading icon={<ShieldCheck size={18} />} title="Permissions" count={draftGrants.length} />
+      <SectionHeading icon={<ShieldCheck size={18} />} title="Permissions" count={permissionsLoaded ? draftGrants.length : undefined} />
 
-      {kind === 'folder' ? (
+      {kind === 'folder' && !permissionsLoaded ? (
         <div className="permission-note">
-          S3 folders are prefixes. Saving this table applies it to {objectCount ?? 0} object{objectCount === 1 ? '' : 's'} currently under this prefix.
+          Open more access settings to load object ACLs for this prefix.
         </div>
       ) : null}
 
-      <Card className="acl-table-card">
-        <div className="permission-block-heading">
-          <strong>ACL grants</strong>
-          <div className="permission-actions">
-            <Button size="sm" onClick={addGrant} disabled={disabled}>
-              <Plus size={15} />
-              Add
-            </Button>
-            <Button variant="primary" size="sm" onClick={() => onSaveAclGrants(draftGrants)} disabled={disabled}>
-              <Save size={15} />
-              Save
-            </Button>
-          </div>
-        </div>
-        <div className="acl-table">
-          <div className="acl-row acl-head">
-            <span>Permission</span>
-            <span>Grantee</span>
-            <span>Value</span>
-            <span />
-          </div>
-          {draftGrants.map((grant, index) => (
-            <AclGrantRow
-              key={`${grant.permission || 'grant'}:${grant.id || grant.uri || grant.email_address || index}`}
-              grant={grant}
-              disabled={disabled}
-              onChange={(nextGrant) => updateGrant(index, nextGrant)}
-              onRemove={() => removeGrant(index)}
-            />
-          ))}
-          {draftGrants.length === 0 ? <EmptyState message="No ACL grants found" compact /> : null}
-        </div>
-      </Card>
+      {showPrimaryAclTable ? (
+        <AclTable
+          grants={draftGrants}
+          disabled={disabled}
+          onAdd={addGrant}
+          onSave={() => onSaveAclGrants(draftGrants)}
+          onUpdate={updateGrant}
+          onRemove={removeGrant}
+        />
+      ) : null}
 
       {hasMoreAwsSettings ? (
-        <details className="advanced-permissions">
+        <details
+          className="advanced-permissions"
+          onToggle={(event) => {
+            if (kind === 'folder' && event.currentTarget.open && !permissionsLoaded && !loadingPermissions) {
+              onLoadFolderPermissions?.()
+            }
+          }}
+        >
           <summary>
             <ChevronDown size={15} />
             More AWS access settings
           </summary>
           <div className="advanced-permissions-body">
+            {kind === 'folder' ? (
+              <>
+                {loadingPermissions ? (
+                  <div className="permission-loading">
+                    <Loader2 className="spin" size={16} />
+                    <span>Loading folder ACLs</span>
+                  </div>
+                ) : null}
+                {permissionsLoaded ? (
+                  <>
+                    <div className="permission-note">
+                      S3 folders are prefixes. Saving this table applies it to {objectCount ?? 0} object
+                      {objectCount === 1 ? '' : 's'} currently under this prefix.
+                    </div>
+                    <AclTable
+                      grants={draftGrants}
+                      disabled={disabled}
+                      onAdd={addGrant}
+                      onSave={() => onSaveAclGrants(draftGrants)}
+                      onUpdate={updateGrant}
+                      onRemove={removeGrant}
+                    />
+                  </>
+                ) : null}
+              </>
+            ) : null}
             {kind === 'bucket' ? (
               <>
                 <div className="permission-meta-grid">
@@ -161,6 +178,58 @@ export function PermissionsPanel({
 
       <PermissionErrors errors={errors} />
     </section>
+  )
+}
+
+function AclTable({
+  grants,
+  disabled,
+  onAdd,
+  onSave,
+  onUpdate,
+  onRemove,
+}: {
+  grants: PermissionGrant[]
+  disabled?: boolean
+  onAdd: () => void
+  onSave: () => void
+  onUpdate: (index: number, grant: PermissionGrant) => void
+  onRemove: (index: number) => void
+}) {
+  return (
+    <Card className="acl-table-card">
+      <div className="permission-block-heading">
+        <strong>ACL grants</strong>
+        <div className="permission-actions">
+          <Button size="sm" onClick={onAdd} disabled={disabled}>
+            <Plus size={15} />
+            Add
+          </Button>
+          <Button variant="primary" size="sm" onClick={onSave} disabled={disabled}>
+            <Save size={15} />
+            Save
+          </Button>
+        </div>
+      </div>
+      <div className="acl-table">
+        <div className="acl-row acl-head">
+          <span>Permission</span>
+          <span>Grantee</span>
+          <span>Value</span>
+          <span />
+        </div>
+        {grants.map((grant, index) => (
+          <AclGrantRow
+            key={`${grant.permission || 'grant'}:${grant.id || grant.uri || grant.email_address || index}`}
+            grant={grant}
+            disabled={disabled}
+            onChange={(nextGrant) => onUpdate(index, nextGrant)}
+            onRemove={() => onRemove(index)}
+          />
+        ))}
+        {grants.length === 0 ? <EmptyState message="No ACL grants found" compact /> : null}
+      </div>
+    </Card>
   )
 }
 

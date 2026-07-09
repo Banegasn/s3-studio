@@ -47,12 +47,12 @@
 }
 
 .distribution-title strong {
-  color: #222a1f;
+  color: var(--color-panel-strong);
 }
 
 .distribution-title span,
 .origin-line {
-  color: #6e7668;
+  color: var(--color-fg-muted);
   font-size: var(--font-size-sm);
 }
 
@@ -65,12 +65,12 @@
 }
 
 .status.deployed {
-  background: #dceee1;
+  background: var(--color-success-bg);
   color: var(--color-success-fg);
 }
 
 .status.disabled {
-  background: #f2e6d7;
+  background: var(--color-warning-bg);
   color: var(--color-warning-fg);
 }
 
@@ -80,9 +80,10 @@
   gap: var(--space-4);
 }
 
-.url-copy-list {
-  display: grid;
-  gap: var(--space-4);
+.distribution-body {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-end;
 }
 
 .copy-url-row {
@@ -93,11 +94,11 @@
   gap: var(--space-14);
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-sm);
-  background: #f3f6ef;
+  background: var(--color-bg-subtle);
 }
 
 .copy-url-row span {
-  color: #687160;
+  color: var(--color-panel-muted);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   white-space: nowrap;
@@ -107,7 +108,7 @@
 .copy-url-row code {
   min-width: 0;
   overflow: hidden;
-  color: #253224;
+  color: var(--color-fg);
   word-break: break-word;
   font: var(--font-size-sm)/1.2 var(--font-mono);
 }

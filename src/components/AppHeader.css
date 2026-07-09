@@ -24,8 +24,8 @@
   place-items: center;
   border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
-  background: #e9efe2;
-  color: #2e633f;
+  background: var(--color-accent-bg-strong);
+  color: var(--color-accent);
 }
 
 .brand-mark img {
@@ -56,6 +56,6 @@
 .context-bar span {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: #6d7469;
+  color: var(--color-panel-muted);
   text-transform: uppercase;
 }

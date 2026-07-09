@@ -23,6 +23,7 @@ type Props = {
   pathOverrides: Record<string, string>
   loadingDetails: boolean
   busy?: string
+  theme: 'light' | 'dark'
   onSaveObjectAclGrants: (grants: PermissionGrant[]) => void
   onSaveObjectText: (text: string) => void
   onInvalidate: (distribution: LinkedDistribution) => void
@@ -39,12 +40,13 @@ export function ObjectDetails({
   pathOverrides,
   loadingDetails,
   busy,
+  theme,
   onSaveObjectAclGrants,
   onSaveObjectText,
   onInvalidate,
 }: Props) {
   return (
-    <aside className="details-pane">
+    <aside className="details-pane object-details-pane">
       <PanelHeading eyebrow="Object" title={fileNameFromKey(selectedObject.key)} />
 
       <div className="preview-box">
@@ -53,6 +55,7 @@ export function ObjectDetails({
           preview={preview}
           loadingDetails={loadingDetails}
           disabled={Boolean(busy)}
+          theme={theme}
           onSave={onSaveObjectText}
         />
       </div>

@@ -2,8 +2,8 @@
 
 :root {
   /* Color palette */
-  --color-bg: #f6f7f4;
-  --color-bg-light: #fbfcf8;
+  --color-bg: #f3f5ef;
+  --color-bg-light: #f9fbf5;
   --color-bg-white: #ffffff;
   --color-bg-subtle: #f7f9f4;
   --color-bg-hover: #e8eee2;
@@ -23,6 +23,11 @@
   --color-accent-light: #3d73a8;
   --color-accent-bg: #e6edf4;
   --color-accent-bg-strong: #eef3e8;
+  --color-warm-accent: #c98219;
+  --color-row-border: #edf0e8;
+  --color-table-head: #eef2e9;
+  --color-panel-strong: #273124;
+  --color-panel-muted: #687160;
 
   --color-success-bg: #e1f2e5;
   --color-success-border: #bad8c1;
@@ -100,4 +105,64 @@
 
   /* Transitions */
   --transition-fast: 160ms ease;
+}
+
+.app-shell[data-theme='dark'] {
+  --color-bg: #071018;
+  --color-bg-light: #0b151e;
+  --color-bg-white: #101c25;
+  --color-bg-subtle: #0e1a23;
+  --color-bg-hover: #162633;
+  --color-bg-active: #1b2d2b;
+  --color-bg-focus: #112c36;
+
+  --color-fg: #e8f0ea;
+  --color-fg-muted: #9aa9a2;
+  --color-fg-subtle: #7f9089;
+
+  --color-border: #26333d;
+  --color-border-light: #2c3a43;
+  --color-border-input: #35454f;
+  --color-border-hover: #5f7f7a;
+
+  --color-accent: #22d3ee;
+  --color-accent-light: #67e8f9;
+  --color-accent-bg: #102e38;
+  --color-accent-bg-strong: #182c2b;
+  --color-warm-accent: #f59e0b;
+  --color-row-border: #1e2b34;
+  --color-table-head: #111f28;
+  --color-panel-strong: #f6efd9;
+  --color-panel-muted: #a4b0a9;
+
+  --color-success-bg: #0f2d22;
+  --color-success-border: #245f48;
+  --color-success-fg: #87e6b0;
+
+  --color-error-bg: #321b18;
+  --color-error-border: #79372e;
+  --color-error-fg: #ffb4a8;
+  --color-error-fg-strong: #ffb4a8;
+
+  --color-info-bg: #102a3f;
+  --color-info-border: #285b80;
+  --color-info-fg: #93d5ff;
+
+  --color-warning-bg: #35270c;
+  --color-warning-border: #7f5d19;
+  --color-warning-fg: #ffd47a;
+
+  --color-public-bg: #321b18;
+  --color-public-border: #8f5a42;
+
+  --color-auth-bg: #35270c;
+  --color-auth-border: #7f5d19;
+
+  --color-full-bg: #10291f;
+  --color-full-border: #2d6f4f;
+
+  --shadow-sm: 0 0 0 3px rgba(34, 211, 238, 0.16);
+  --shadow-md: 0 10px 28px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 16px 42px rgba(0, 0, 0, 0.44);
+  --shadow-xl: 0 18px 50px rgba(0, 0, 0, 0.5);
 }

@@ -13,7 +13,7 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-4);
-  border: 1px solid #c6d0bd;
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   background: var(--color-bg-white);
   box-shadow: var(--shadow-lg);
@@ -28,7 +28,7 @@
   padding: 0 var(--space-8);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #283126;
+  color: var(--color-fg);
   text-align: left;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
@@ -41,15 +41,15 @@
 }
 
 .context-menu button.danger {
-  color: #7d321f;
+  color: var(--color-error-fg-strong);
 }
 
 .context-menu button.danger:hover {
-  background: #f8e9e2;
+  background: var(--color-error-bg);
 }
 
 .context-menu-separator {
   height: 1px;
   margin: var(--space-4) var(--space-3);
-  background: #e2e8dc;
+  background: var(--color-border);
 }

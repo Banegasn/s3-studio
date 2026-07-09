@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent } from 'react'
-import { ChevronRight, Download, File, Folder, Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { ChevronRight, Download, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
 import { Button, IconButton, SearchBox, EmptyState } from './ui'
@@ -65,6 +65,8 @@ export function BrowserPane({
   const hasSelectedEntry = selectedEntries.length > 0
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
+  const [prefixDraft, setPrefixDraft] = useState(prefix)
+  const [isEditingPrefix, setIsEditingPrefix] = useState(false)
   const selectedFilteredCount = filteredObjects.filter((entry) => selectedIds.has(entryId(entry))).length
   const allFilteredSelected = filteredObjects.length > 0 && selectedFilteredCount === filteredObjects.length
   const someFilteredSelected = selectedFilteredCount > 0 && !allFilteredSelected
@@ -78,6 +80,21 @@ export function BrowserPane({
       selectAllRef.current.indeterminate = someFilteredSelected
     }
   }, [someFilteredSelected])
+
+  useEffect(() => {
+    setPrefixDraft(prefix)
+  }, [prefix])
+
+  function submitPrefix(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsEditingPrefix(false)
+    onSetPrefix(prefixDraft)
+  }
+
+  function closePrefixEditor() {
+    setIsEditingPrefix(false)
+    onSetPrefix(prefixDraft)
+  }
 
   function toggleAllVisible() {
     if (allFilteredSelected) {
@@ -154,21 +171,40 @@ export function BrowserPane({
   return (
     <section className={isDropActive ? 'browser-pane drop-active' : 'browser-pane'}>
       <div className="browser-toolbar">
-        <div className="breadcrumbs">
-          <button type="button" onClick={() => onSetPrefix('')} disabled={!bucket}>
-            {bucket || 'No bucket'}
+        {isEditingPrefix ? (
+          <form className="breadcrumbs prefix-editor active" onSubmit={submitPrefix}>
+            <Pencil size={15} />
+            <input
+              autoFocus
+              value={prefixDraft}
+              onChange={(event) => setPrefixDraft(event.target.value)}
+              onBlur={closePrefixEditor}
+              disabled={!bucket}
+              placeholder="/"
+              aria-label="Current prefix"
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="breadcrumbs breadcrumb-editor-trigger"
+            onClick={() => {
+              if (bucket) setIsEditingPrefix(true)
+            }}
+            disabled={!bucket}
+            title="Click to edit prefix"
+          >
+            <span>{bucket || 'No bucket'}</span>
+            {breadcrumbs.map((crumb) => (
+              <span key={crumb.prefix} className="crumb">
+                <ChevronRight size={15} />
+                <span>{crumb.label}</span>
+              </span>
+            ))}
+            <Pencil className="breadcrumb-edit-icon" size={14} />
           </button>
-          {breadcrumbs.map((crumb) => (
-            <span key={crumb.prefix} className="crumb">
-              <ChevronRight size={15} />
-              <button type="button" onClick={() => onSetPrefix(crumb.prefix)}>
-                {crumb.label}
-              </button>
-            </span>
-          ))}
-        </div>
+        )}
         <div className="toolbar-actions">
-          <span className="current-folder">{currentFolderLabel(prefix)}</span>
           <Button onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>
             <Upload size={16} />
             Files

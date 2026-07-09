@@ -25,52 +25,91 @@
   display: flex;
   align-items: end;
   gap: var(--space-6);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .breadcrumbs {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  min-width: 0;
+  min-width: 240px;
+  flex: 1 1 320px;
   overflow: hidden;
 }
 
-.breadcrumbs button {
+.breadcrumb-editor-trigger {
+  height: var(--space-44);
+  padding: 0 var(--space-8);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  text-align: left;
+  cursor: text;
+  font: inherit;
+}
+
+.breadcrumb-editor-trigger:hover:not(:disabled) {
+  border-color: var(--color-border-input);
+  background: var(--color-bg-focus);
+}
+
+.breadcrumb-editor-trigger > span:first-child,
+.crumb span {
   max-width: 190px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-accent);
   font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  border: 0;
-  font: inherit;
-}
-
-.breadcrumbs button:hover:not(:disabled) {
-  background: var(--color-bg-focus);
 }
 
 .crumb {
   display: flex;
   align-items: center;
   min-width: 0;
-  color: #7c8577;
+  color: var(--color-fg-subtle);
 }
 
-.current-folder {
-  max-width: 160px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: var(--space-5) var(--space-8);
+.breadcrumb-edit-icon {
+  flex: 0 0 auto;
+  margin-left: var(--space-5);
+  color: var(--color-fg-subtle);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.breadcrumb-editor-trigger:hover .breadcrumb-edit-icon {
+  opacity: 1;
+}
+
+.prefix-editor {
+  height: var(--space-44);
+  gap: var(--space-5);
+  padding: 0 var(--space-8);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-active);
-  color: #4f5d48;
+  color: var(--color-panel-muted);
+}
+
+.prefix-editor.active {
+  border-color: var(--color-accent-light);
+}
+
+.prefix-editor:focus-within {
+  border-color: var(--color-accent-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.prefix-editor input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-fg);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
 }
@@ -81,7 +120,7 @@
   justify-content: space-between;
   gap: var(--space-6);
   padding: var(--space-10) var(--space-14);
-  color: #70776d;
+  color: var(--color-fg-muted);
   font-size: var(--font-size-base);
   user-select: none;
 }
@@ -124,8 +163,8 @@
   z-index: 1;
   height: var(--space-44);
   padding: 0 var(--space-10);
-  background: #f0f3ec;
-  color: #687160;
+  background: var(--color-table-head);
+  color: var(--color-panel-muted);
   text-align: left;
   font-size: var(--font-size-sm);
   text-transform: uppercase;
@@ -148,8 +187,8 @@
 .object-table td {
   height: var(--space-48);
   padding: 0 var(--space-10);
-  border-top: 1px solid #edf0e8;
-  color: #30362d;
+  border-top: 1px solid var(--color-row-border);
+  color: var(--color-fg);
   vertical-align: middle;
 }
 
@@ -159,7 +198,7 @@
 
 .object-table tbody tr:hover,
 .object-table tbody tr.selected {
-  background: #eef5eb;
+  background: var(--color-bg-hover);
 }
 
 .object-table tbody tr.focused {
@@ -171,13 +210,13 @@
   align-items: center;
   gap: var(--space-6);
   min-width: 220px;
-  color: #22301f;
+  color: var(--color-panel-strong);
   font-weight: var(--font-weight-medium);
 }
 
 .object-name svg {
   flex: 0 0 auto;
-  color: #b57924;
+  color: var(--color-warm-accent);
 }
 
 .object-name svg + * {
@@ -194,7 +233,7 @@
   inset: var(--space-44) 0 0;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--color-bg-white) 68%, transparent);
 }
 
 .drop-overlay {
@@ -204,8 +243,8 @@
   display: grid;
   place-items: center;
   gap: var(--space-8);
-  background: rgba(237, 244, 248, 0.9);
-  color: #285780;
+  background: color-mix(in srgb, var(--color-accent-bg) 90%, transparent);
+  color: var(--color-accent);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
 }

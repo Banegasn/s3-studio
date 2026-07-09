@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
-  color: #385d83;
+  color: var(--color-accent);
 }
 
 .section-heading h3 {

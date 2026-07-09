@@ -23,7 +23,7 @@
 .btn-secondary {
   border: 1px solid var(--color-border-input);
   background: var(--color-bg-white);
-  color: #2d3429;
+  color: var(--color-fg);
 }
 
 .btn-secondary:hover:not(:disabled) {
@@ -44,7 +44,7 @@
 
 .btn-primary {
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-bg);
 }
 
 .btn-primary:hover:not(:disabled) {

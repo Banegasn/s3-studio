@@ -18,8 +18,8 @@
   min-height: var(--space-48);
   padding: var(--space-8) var(--space-8) var(--space-8) var(--space-10);
   border-radius: var(--radius-md);
-  box-shadow: 0 var(--space-12) 30px rgba(38, 45, 35, 0.18);
-  color: #1d261a;
+  box-shadow: var(--shadow-md);
+  color: var(--color-fg);
   font-size: var(--font-size-base);
 }
 

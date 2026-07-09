@@ -34,9 +34,11 @@ type Props = {
   publicAccessBlockDraft?: PublicAccessBlock
   loadingDetails: boolean
   busy?: string
+  theme: 'light' | 'dark'
   onSaveBucketAclGrants: (grants: PermissionGrant[]) => void
   onSaveFolderAclGrants: (grants: PermissionGrant[]) => void
   onSaveObjectAclGrants: (grants: PermissionGrant[]) => void
+  onLoadFolderPermissions: () => void
   onSaveObjectText: (text: string) => void
   onBucketPolicyChange: (value: string) => void
   onSaveBucketPolicy: () => void

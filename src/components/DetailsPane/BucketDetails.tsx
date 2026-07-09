@@ -1,4 +1,3 @@
-import { Boxes, Loader2 } from 'lucide-react'
 import type {
   BucketPermissions,
   PublicAccessBlock,
@@ -6,7 +5,7 @@ import type {
   PermissionGrant,
 } from '../../types'
 import { formatDate } from '../../utils/format'
-import { PanelHeading, EmptyState } from '../ui'
+import { PanelHeading } from '../ui'
 import { PermissionsPanel } from '../PermissionsPanel'
 
 type Props = {
@@ -44,10 +43,6 @@ export function BucketDetails({
     <aside className="details-pane">
       <PanelHeading eyebrow="Bucket" title={selectedBucket} />
 
-      <div className="preview-box resource-preview">
-        <ResourcePreview loading={loadingDetails} icon={<Boxes size={26} />} label={selectedBucket} />
-      </div>
-
       <DetailGrid>
         <DetailGridCell label="Name">{selectedBucket}</DetailGridCell>
         <DetailGridCell label="Created">{formatDate(selectedBucketDetails?.creation_date)}</DetailGridCell>
@@ -71,18 +66,6 @@ export function BucketDetails({
         onDeleteBucketPolicy={onDeleteBucketPolicy}
       />
     </aside>
-  )
-}
-
-function ResourcePreview({ loading, icon, label }: { loading: boolean; icon: React.ReactNode; label: string }) {
-  if (loading) {
-    return <EmptyState icon={<Loader2 className="spin" size={22} />} message="Loading details" compact />
-  }
-  return (
-    <div className="resource-preview-content">
-      {icon}
-      <span>{label}</span>
-    </div>
   )
 }
 

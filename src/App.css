@@ -55,11 +55,11 @@
   width: min(420px, calc(100vw - 36px));
   min-height: var(--space-54);
   padding: var(--space-8) var(--space-10);
-  border: 1px solid #bdc9b3;
+  border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   background: var(--color-bg-white);
   box-shadow: var(--shadow-md);
-  color: #2e3a29;
+  color: var(--color-fg);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
 }
@@ -93,7 +93,7 @@
 
 .busy-text small {
   flex: 0 0 auto;
-  color: #66715f;
+  color: var(--color-fg-muted);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
 }

@@ -66,6 +66,7 @@ const BUCKET_PANE_WIDTH_KEY = 's3-cloudfront-studio:bucket-pane-width'
 const DETAILS_PANE_WIDTH_KEY = 's3-cloudfront-studio:details-pane-width'
 const BUCKET_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:bucket-pane-collapsed'
 const DETAILS_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:details-pane-collapsed'
+const THEME_KEY = 's3-cloudfront-studio:theme'
 const DEFAULT_BUCKET_PANE_WIDTH = 280
 const DEFAULT_DETAILS_PANE_WIDTH = 390
 const MIN_BUCKET_PANE_WIDTH = 220
@@ -74,6 +75,7 @@ const MIN_BROWSER_PANE_WIDTH = 520
 const DELETE_PROGRESS_EVENT = 's3-delete-progress'
 
 type ResizePane = 'bucket' | 'details'
+type ThemeMode = 'light' | 'dark'
 
 function entryId(entry: S3Entry) {
   return `${entry.kind}:${entry.key}`
@@ -111,6 +113,11 @@ function readStorageBoolean(key: string, fallback: boolean) {
   return raw === 'true'
 }
 
+function readStorageTheme() {
+  const raw = window.localStorage.getItem(THEME_KEY)
+  return raw === 'dark' || raw === 'light' ? raw : 'dark'
+}
+
 function bucketStorageId(profile: string, bucket: string) {
   return `${profile}:${bucket}`
 }
@@ -121,6 +128,16 @@ function operationId(name: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function normalizePrefixInput(value: string) {
+  const clean = value.trim().replace(/^\/+/, '')
+  if (!clean) return ''
+  return clean.endsWith('/') ? clean : `${clean}/`
+}
+
+function isTauriRuntime() {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
 function App() {
@@ -159,6 +176,7 @@ function App() {
   const [detailsPaneWidth, setDetailsPaneWidth] = useState(() => readStorageNumber(DETAILS_PANE_WIDTH_KEY, DEFAULT_DETAILS_PANE_WIDTH))
   const [isBucketPaneCollapsed, setIsBucketPaneCollapsed] = useState(() => readStorageBoolean(BUCKET_PANE_COLLAPSED_KEY, false))
   const [isDetailsPaneCollapsed, setIsDetailsPaneCollapsed] = useState(() => readStorageBoolean(DETAILS_PANE_COLLAPSED_KEY, false))
+  const [theme, setTheme] = useState<ThemeMode>(() => readStorageTheme())
   const [activeResize, setActiveResize] = useState<ResizePane | undefined>()
   const detailRequestId = useRef(0)
   const activeDeleteProgressId = useRef<string | undefined>(undefined)
@@ -209,6 +227,27 @@ function App() {
     setLinkedDistributions([])
     setPathOverrides({})
   }, [])
+
+  const loadFolderPermissions = useCallback(
+    async (entry: S3Entry) => {
+      if (!selectedBucket || entry.kind !== 'folder') return
+      const requestId = detailRequestId.current + 1
+      detailRequestId.current = requestId
+      setLoadingDetails(true)
+      setFolderPermissions(undefined)
+      try {
+        const permissions = await getPrefixPermissions({ ...awsContext, bucket: selectedBucket, prefix: entry.key })
+        if (requestId !== detailRequestId.current) return
+        setFolderPermissions(permissions)
+      } catch (error) {
+        if (requestId !== detailRequestId.current) return
+        pushToast('error', `Folder ACL load failed: ${errorText(error)}`)
+      } finally {
+        if (requestId === detailRequestId.current) setLoadingDetails(false)
+      }
+    },
+    [awsContext, pushToast, selectedBucket],
+  )
 
   const clearSelection = useCallback(() => {
     setSelectedEntry(undefined)
@@ -393,20 +432,10 @@ function App() {
       if (isDetailsPaneCollapsed) return
       const requestId = detailRequestId.current + 1
       detailRequestId.current = requestId
-      setLoadingDetails(true)
       setFolderPermissions(undefined)
-      try {
-        const permissions = await getPrefixPermissions({ ...awsContext, bucket: selectedBucket, prefix: entry.key })
-        if (requestId !== detailRequestId.current) return
-        setFolderPermissions(permissions)
-      } catch (error) {
-        if (requestId !== detailRequestId.current) return
-        pushToast('error', `Folder details failed: ${errorText(error)}`)
-      } finally {
-        if (requestId === detailRequestId.current) setLoadingDetails(false)
-      }
+      if (requestId === detailRequestId.current) setLoadingDetails(false)
     },
-    [awsContext, isDetailsPaneCollapsed, pushToast, selectedBucket],
+    [isDetailsPaneCollapsed, selectedBucket],
   )
 
   const uploadSourcePaths = useCallback(
@@ -469,6 +498,7 @@ function App() {
   }, [isDetailsPaneCollapsed, loadObjectDetails, selectedObject])
 
   useEffect(() => {
+    if (!isTauriRuntime()) return
     let unlisten: (() => void) | undefined
     void listen<DeleteProgress>(DELETE_PROGRESS_EVENT, (event) => {
       if (activeDeleteProgressId.current !== event.payload.id) return
@@ -480,6 +510,7 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!isTauriRuntime()) return
     let unlisten: (() => void) | undefined
     void getCurrentWebview()
       .onDragDropEvent((event) => {
@@ -554,6 +585,10 @@ function App() {
   }, [isDetailsPaneCollapsed])
 
   useEffect(() => {
+    window.localStorage.setItem(THEME_KEY, theme)
+  }, [theme])
+
+  useEffect(() => {
     if (!selectedProfile) return
     const filters = readStorageMap(LAST_BUCKET_FILTERS_KEY)
     writeStorageMap(LAST_BUCKET_FILTERS_KEY, { ...filters, [selectedProfile]: bucketFilter })
@@ -601,7 +636,7 @@ function App() {
   }
 
   function navigateToPrefix(nextPrefix: string) {
-    setPrefix(nextPrefix)
+    setPrefix(normalizePrefixInput(nextPrefix))
     setNextToken(undefined)
     clearSelection()
   }
@@ -1046,7 +1081,7 @@ function App() {
     try {
       const result = await setPrefixAclGrants({ ...awsContext, bucket: selectedBucket, prefix: selectedEntry.key, grants })
       pushToast('success', `Updated ${result.updated} object${result.updated === 1 ? '' : 's'}`)
-      await loadFolderDetails(selectedEntry)
+      await loadFolderPermissions(selectedEntry)
     } catch (error) {
       pushToast('error', `Folder ACL update failed: ${errorText(error)}`)
     } finally {
@@ -1163,18 +1198,20 @@ function App() {
     : undefined
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-theme={theme}>
       <AppHeader
         profiles={profiles}
         selectedProfile={selectedProfile}
         region={region}
         isBucketPaneCollapsed={isBucketPaneCollapsed}
         isDetailsPaneCollapsed={isDetailsPaneCollapsed}
+        theme={theme}
         onProfileChange={chooseProfile}
         onRegionChange={setRegion}
         onRefreshBuckets={loadBucketList}
         onToggleBucketPane={() => setIsBucketPaneCollapsed((current) => !current)}
         onToggleDetailsPane={() => setIsDetailsPaneCollapsed((current) => !current)}
+        onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
       />
 
       <div className="workspace-scroll">
@@ -1254,9 +1291,13 @@ function App() {
                 publicAccessBlockDraft={publicAccessBlockDraft}
                 loadingDetails={loadingDetails}
                 busy={busy}
+                theme={theme}
                 onSaveBucketAclGrants={saveBucketAclGrants}
                 onSaveFolderAclGrants={saveFolderAclGrants}
                 onSaveObjectAclGrants={saveObjectAclGrants}
+                onLoadFolderPermissions={() => {
+                  if (selectedEntry?.kind === 'folder') void loadFolderPermissions(selectedEntry)
+                }}
                 onSaveObjectText={saveObjectEditorText}
                 onBucketPolicyChange={setBucketPolicyDraft}
                 onSaveBucketPolicy={saveBucketPolicy}
