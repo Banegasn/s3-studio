@@ -1,0 +1,14 @@
+/* EmptyState styles */
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  gap: var(--space-6);
+  min-height: 92px;
+  color: var(--color-fg-subtle);
+  font-size: var(--font-size-base);
+}
+
+.empty-state.compact {
+  min-height: 120px;
+}

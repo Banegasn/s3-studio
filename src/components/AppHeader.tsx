@@ -4,6 +4,7 @@ import appIcon from '../assets/app-icon.png'
 import type { AwsProfile } from '../types'
 import { DEFAULT_REGION } from '../utils/format'
 import { Input, Select, IconButton } from './ui'
+import './AppHeader.css'
 
 type Props = {
   profiles: AwsProfile[]

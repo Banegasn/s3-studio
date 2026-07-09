@@ -1,0 +1,211 @@
+/* BrowserPane styles */
+
+.browser-pane {
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  background: var(--color-bg);
+}
+
+.browser-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-light);
+  user-select: none;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: end;
+  gap: var(--space-6);
+}
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.breadcrumbs button {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  border: 0;
+  font: inherit;
+}
+
+.breadcrumbs button:hover:not(:disabled) {
+  background: var(--color-bg-focus);
+}
+
+.crumb {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: #7c8577;
+}
+
+.current-folder {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: var(--space-5) var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-active);
+  color: #4f5d48;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.object-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-10) var(--space-14);
+  color: #70776d;
+  font-size: var(--font-size-base);
+  user-select: none;
+}
+
+.object-filter-row .search-box {
+  margin: 0;
+  width: min(440px, 100%);
+}
+
+.object-table-wrap {
+  min-height: 0;
+  position: relative;
+  overflow: auto;
+  margin: 0 var(--space-14) var(--space-14);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
+}
+
+.object-table-wrap:focus {
+  outline: 2px solid rgba(61, 115, 168, 0.42);
+  outline-offset: 2px;
+}
+
+.drop-active .object-table-wrap {
+  border-color: var(--color-accent-light);
+  box-shadow: inset 0 0 0 2px rgba(61, 115, 168, 0.2);
+}
+
+.object-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-base);
+  user-select: none;
+}
+
+.object-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: var(--space-44);
+  padding: 0 var(--space-10);
+  background: #f0f3ec;
+  color: #687160;
+  text-align: left;
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+}
+
+.object-table .select-cell {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+  text-align: center;
+}
+
+.object-table .select-cell input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.object-table td {
+  height: var(--space-48);
+  padding: 0 var(--space-10);
+  border-top: 1px solid #edf0e8;
+  color: #30362d;
+  vertical-align: middle;
+}
+
+.object-table tbody tr {
+  cursor: default;
+}
+
+.object-table tbody tr:hover,
+.object-table tbody tr.selected {
+  background: #eef5eb;
+}
+
+.object-table tbody tr.focused {
+  box-shadow: inset 3px 0 0 var(--color-accent-light);
+}
+
+.object-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 220px;
+  color: #22301f;
+  font-weight: var(--font-weight-medium);
+}
+
+.object-name svg {
+  flex: 0 0 auto;
+  color: #b57924;
+}
+
+.object-name svg + * {
+  min-width: 0;
+}
+
+.load-more {
+  justify-self: center;
+  margin: 0 0 var(--space-14);
+}
+
+.table-overlay {
+  position: absolute;
+  inset: var(--space-44) 0 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: var(--space-44) 0 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: var(--space-8);
+  background: rgba(237, 244, 248, 0.9);
+  color: #285780;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}

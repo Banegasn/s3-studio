@@ -1,3 +1,5 @@
+import './ProgressBar.css'
+
 type Props = {
   percent?: number
   indeterminate?: boolean

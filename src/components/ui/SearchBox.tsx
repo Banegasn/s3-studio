@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import type { ReactNode } from 'react'
+import './SearchBox.css'
 
 type Props = {
   icon?: ReactNode

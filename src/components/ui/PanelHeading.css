@@ -1,0 +1,16 @@
+/* PanelHeading styles */
+
+.pane-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-10);
+  padding: var(--space-14);
+  user-select: none;
+}
+
+.pane-heading h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  line-height: 1.2;
+}

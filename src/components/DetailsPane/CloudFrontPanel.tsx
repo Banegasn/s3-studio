@@ -2,6 +2,7 @@ import { AlertCircle, CloudLightning } from 'lucide-react'
 import type { LinkedDistribution, S3Entry } from '../../types'
 import { SectionHeading, EmptyState, Button } from '../ui'
 import { CopyUrlRow } from './CopyUrlRow'
+import './CloudFrontPanel.css'
 
 type Props = {
   selectedBucket: string

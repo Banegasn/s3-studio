@@ -13,6 +13,7 @@ import type {
 } from '../../types'
 import { BucketDetails } from './BucketDetails'
 import { FolderDetails } from './FolderDetails'
+import '../DetailsPane.css'
 import { ObjectDetails } from './ObjectDetails'
 import { PanelHeading, EmptyState } from '../ui'
 

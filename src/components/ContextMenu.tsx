@@ -1,5 +1,6 @@
 import { CloudLightning, Download, ExternalLink, FolderOpen, Trash2 } from 'lucide-react'
 import type { S3Entry } from '../types'
+import './ContextMenu.css'
 
 export type ContextMenuState = {
   x: number

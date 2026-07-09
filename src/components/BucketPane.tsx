@@ -1,6 +1,7 @@
 import { Boxes } from 'lucide-react'
 import type { S3Bucket } from '../types'
 import { SearchBox, PanelHeading, Badge, EmptyState } from './ui'
+import './BucketPane.css'
 
 type Props = {
   buckets: S3Bucket[]

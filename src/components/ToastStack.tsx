@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, X } from 'lucide-react'
 import type { Toast } from '../types'
+import './ToastStack.css'
 
 type Props = {
   toasts: Toast[]

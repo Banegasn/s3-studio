@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071018">
+  <title>S3 Studio — A desktop workspace for Amazon S3</title>
+  <meta name="description" content="Browse S3, preview objects, transfer files, inspect permissions, and invalidate CloudFront caches from one open-source desktop app.">
+  <meta property="og:title" content="S3 Studio — S3 and CloudFront, without the console maze">
+  <meta property="og:description" content="A focused, open-source desktop client for everyday S3 and CloudFront operations.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://banegasn.github.io/s3-studio/">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23f59e0b'/><path d='M26 30h48v12H26zm0 18h48v12H26zm0 18h48v12H26z' fill='%23071018'/></svg>">
+  <style>
+    :root {
+      --bg: #071018;
+      --bg-soft: #0a151f;
+      --panel: rgba(255, 255, 255, .045);
+      --panel-strong: rgba(255, 255, 255, .075);
+      --border: rgba(255, 255, 255, .10);
+      --border-bright: rgba(255, 255, 255, .18);
+      --text: #f7f4ec;
+      --muted: #9aa8b5;
+      --faint: #697986;
+      --amber: #f59e0b;
+      --amber-light: #fbbf24;
+      --cyan: #22d3c5;
+      --red: #fb7185;
+      --radius: 18px;
+      --maxw: 1080px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100% }
+    body {
+      min-width: 320px;
+      overflow-x: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        radial-gradient(700px 470px at 50% -8%, rgba(245, 158, 11, .22), transparent 62%),
+        radial-gradient(560px 440px at 94% 22%, rgba(34, 211, 197, .11), transparent 62%),
+        radial-gradient(480px 380px at -5% 40%, rgba(245, 158, 11, .08), transparent 60%);
+    }
+    a { color: inherit; text-decoration: none }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #d8e3ea;
+    }
+    .wrap { width: min(100% - 44px, var(--maxw)); margin-inline: auto }
+    .gradient {
+      color: transparent;
+      background: linear-gradient(100deg, var(--amber-light), var(--amber) 45%, var(--cyan));
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7, 16, 24, .70);
+      backdrop-filter: saturate(140%) blur(15px);
+    }
+    nav .wrap { height: 62px; display: flex; align-items: center; gap: 14px }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -.02em }
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      color: #1a1203;
+      background: linear-gradient(145deg, var(--amber-light), var(--amber));
+      box-shadow: 0 7px 20px rgba(245, 158, 11, .22);
+    }
+    .brand-mark svg { width: 17px }
+    .spacer { flex: 1 }
+    .nav-link { padding: 7px 9px; border-radius: 8px; color: var(--muted); font-size: 14px }
+    .nav-link:hover { color: var(--text); background: var(--panel) }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 19px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      font-size: 14.5px;
+      font-weight: 680;
+      transition: transform .16s ease, filter .16s ease, background .16s ease;
+    }
+    .btn:hover { transform: translateY(-1px) }
+    .btn.primary {
+      color: #211500;
+      background: linear-gradient(180deg, var(--amber-light), var(--amber));
+      box-shadow: 0 10px 28px rgba(245, 158, 11, .24);
+    }
+    .btn.primary:hover { filter: brightness(1.07) }
+    .btn.ghost { border-color: var(--border-bright); background: var(--panel); color: var(--text) }
+    .btn.ghost:hover { background: var(--panel-strong) }
+    nav .btn { padding: 8px 15px }
+
+    header { padding: 92px 0 36px; text-align: center }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 25px;
+      padding: 6px 14px;
+      border: 1px solid var(--border-bright);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .pill .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--amber-light);
+      box-shadow: 0 0 12px var(--amber);
+    }
+    h1 {
+      max-width: 900px;
+      margin: auto;
+      font-size: clamp(42px, 7vw, 72px);
+      font-weight: 820;
+      line-height: 1.01;
+      letter-spacing: -.045em;
+    }
+    .tagline {
+      max-width: 680px;
+      margin: 22px auto 0;
+      color: var(--muted);
+      font-size: clamp(16px, 2.2vw, 20px);
+    }
+    .cta { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 32px }
+    .subnote { margin-top: 16px; color: var(--faint); font-size: 13px }
+
+    .product { position: relative; padding: 38px 0 32px }
+    .product::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 45%;
+      width: min(860px, 90%);
+      height: 360px;
+      z-index: -1;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(closest-side, rgba(245, 158, 11, .26), rgba(34, 211, 197, .10) 60%, transparent);
+      filter: blur(48px);
+    }
+    .app-window {
+      overflow: hidden;
+      max-width: 960px;
+      margin: auto;
+      border: 1px solid var(--border-bright);
+      border-radius: 18px;
+      background: #0d1821;
+      box-shadow: 0 42px 100px rgba(0, 0, 0, .62);
+    }
+    .window-top {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 16px;
+      border-bottom: 1px solid #26333d;
+      background: #111d27;
+    }
+    .traffic { width: 10px; height: 10px; border-radius: 50%; background: #fb7185 }
+    .traffic:nth-child(2) { background: #fbbf24 }
+    .traffic:nth-child(3) { background: #4ade80 }
+    .window-title { margin-left: 10px; font-size: 12px; font-weight: 700; color: #d9e1e6 }
+    .window-context { margin-left: auto; display: flex; gap: 8px }
+    .mini-control {
+      min-width: 72px;
+      padding: 5px 9px;
+      border: 1px solid #34434e;
+      border-radius: 6px;
+      background: #192730;
+      color: #91a1ad;
+      font: 10px ui-monospace, monospace;
+      text-align: left;
+    }
+    .app-body { display: grid; grid-template-columns: 190px 1fr 235px; min-height: 450px }
+    .pane { padding: 16px; min-width: 0 }
+    .buckets { border-right: 1px solid #26333d; background: #0b151e }
+    .details { border-left: 1px solid #26333d; background: #0b151e }
+    .pane-label { color: var(--amber-light); font-size: 8px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase }
+    .pane-title { margin-top: 2px; font-size: 15px; font-weight: 750 }
+    .search {
+      margin: 13px 0;
+      padding: 7px 9px;
+      border: 1px solid #2d3b45;
+      border-radius: 7px;
+      color: #687985;
+      font-size: 10px;
+      background: #111e27;
+    }
+    .bucket {
+      padding: 8px 9px;
+      border-radius: 7px;
+      color: #8fa0ab;
+      font-size: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bucket::before { content: "◆"; margin-right: 8px; color: #536570; font-size: 7px }
+    .bucket.active { color: #ffe6ac; background: rgba(245, 158, 11, .13) }
+    .bucket.active::before { color: var(--amber) }
+    .browser-pane { padding: 0 }
+    .toolbar {
+      height: 57px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 14px;
+      border-bottom: 1px solid #26333d;
+      color: #a9b6be;
+      font-size: 10px;
+    }
+    .toolbar strong { color: #f4f6f7 }
+    .toolbar .grow { flex: 1 }
+    .tool {
+      padding: 5px 7px;
+      border: 1px solid #33434e;
+      border-radius: 6px;
+      color: #b8c4cb;
+      background: #15232d;
+      font-size: 9px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 9px }
+    th { padding: 9px 10px; color: #61727e; font-weight: 650; text-align: left; border-bottom: 1px solid #24313b }
+    td { padding: 10px; color: #9aa9b3; border-bottom: 1px solid #1b2831 }
+    td:first-child { color: #dfe7eb }
+    tr.selected td { background: rgba(245, 158, 11, .08) }
+    .folder-icon { color: var(--amber-light); margin-right: 6px }
+    .file-icon { color: #6c8695; margin-right: 6px }
+    .detail-card {
+      margin-top: 13px;
+      padding: 12px;
+      border: 1px solid #2b3a44;
+      border-radius: 9px;
+      background: #111e27;
+    }
+    .detail-card h4 { margin-bottom: 8px; color: #e6ecef; font-size: 11px }
+    .meta { display: grid; grid-template-columns: 1fr auto; gap: 7px; color: #71838f; font-size: 9px }
+    .meta span:nth-child(even) { color: #aebbc3 }
+    .distribution {
+      margin-top: 7px;
+      padding: 7px;
+      border-radius: 6px;
+      color: #87e2d9;
+      background: rgba(34, 211, 197, .08);
+      font-size: 8px;
+    }
+    .caption { margin-top: 16px; color: var(--faint); font-size: 13px; text-align: center }
+
+    .block { padding: 62px 0 }
+    .eyebrow { color: var(--amber); font-size: 13px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase }
+    h2 { margin: 8px 0 28px; font-size: clamp(28px, 4vw, 38px); line-height: 1.15; letter-spacing: -.03em }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px }
+    .card {
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
+    }
+    .card:hover { transform: translateY(-3px); border-color: var(--border-bright); background: var(--panel-strong) }
+    .chip {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 14px;
+      border: 1px solid rgba(245, 158, 11, .24);
+      border-radius: 12px;
+      color: var(--amber-light);
+      background: linear-gradient(150deg, rgba(245, 158, 11, .18), rgba(34, 211, 197, .08));
+      font-size: 19px;
+    }
+    .card h3 { margin-bottom: 5px; font-size: 16px }
+    .card p { color: var(--muted); font-size: 14px }
+    .workflow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; list-style: none; counter-reset: step }
+    .workflow li {
+      position: relative;
+      padding: 22px 20px 20px;
+      border: 1px solid var(--border);
+      border-radius: 15px;
+      background: var(--panel);
+      counter-increment: step;
+    }
+    .workflow li::before {
+      content: "0" counter(step);
+      display: block;
+      margin-bottom: 20px;
+      color: var(--amber);
+      font: 750 12px ui-monospace, monospace;
+    }
+    .workflow strong { display: block; margin-bottom: 5px }
+    .workflow span { color: var(--muted); font-size: 14px }
+    .privacy {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: center;
+      padding: 28px 30px;
+      border: 1px solid rgba(34, 211, 197, .22);
+      border-radius: var(--radius);
+      background: linear-gradient(110deg, rgba(34, 211, 197, .08), rgba(255, 255, 255, .025));
+    }
+    .privacy h3 { margin-bottom: 5px; font-size: 21px }
+    .privacy p { max-width: 690px; color: var(--muted); font-size: 14.5px }
+    .lock { color: var(--cyan); font-size: 34px }
+    footer {
+      margin-top: 36px;
+      padding: 44px 0 60px;
+      border-top: 1px solid var(--border);
+      color: var(--faint);
+      font-size: 13px;
+      text-align: center;
+    }
+    footer a { color: var(--muted) }
+    footer a:hover { color: var(--text) }
+    .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease }
+    .js .reveal.in { opacity: 1; transform: none }
+
+    @media (max-width: 820px) {
+      .grid { grid-template-columns: repeat(2, 1fr) }
+      .app-body { grid-template-columns: 150px 1fr }
+      .details { display: none }
+      .workflow { grid-template-columns: 1fr }
+    }
+    @media (max-width: 620px) {
+      .nav-link { display: none }
+      nav .btn { padding: 8px 12px }
+      header { padding-top: 70px }
+      .grid { grid-template-columns: 1fr }
+      .app-body { grid-template-columns: 1fr; min-height: 390px }
+      .buckets { display: none }
+      .window-context .mini-control:first-child { display: none }
+      .window-context { max-width: 100px }
+      .mini-control { min-width: 0; overflow: hidden }
+      th:nth-child(n+3), td:nth-child(n+3) { display: none }
+      .privacy { grid-template-columns: 1fr }
+      .lock { display: none }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto }
+      .js .reveal { opacity: 1; transform: none; transition: none }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap">
+      <a class="brand" href="#" aria-label="S3 Studio home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5.5C5 4.67 8.13 4 12 4s7 .67 7 1.5S15.87 7 12 7 5 6.33 5 5.5Zm0 0v5C5 11.33 8.13 12 12 12s7-.67 7-1.5v-5m-14 5v5C5 16.33 8.13 17 12 17s7-.67 7-1.5v-5m-14 5v3C5 19.33 8.13 20 12 20s7-.67 7-1.5v-3" stroke="currentColor" stroke-width="1.8"/></svg>
+        </span>
+        S3 Studio
+      </a>
+      <span class="spacer"></span>
+      <a class="nav-link" href="#features">Features</a>
+      <a class="nav-link" href="#workflow">Workflow</a>
+      <a class="nav-link" href="https://github.com/Banegasn/s3-studio">GitHub</a>
+      <a class="btn primary" href="https://github.com/Banegasn/s3-studio/releases/latest">Download</a>
+    </div>
+  </nav>
+
+  <header>
+    <div class="wrap">
+      <span class="pill"><span class="dot"></span> Open source · macOS &amp; Windows</span>
+      <h1>S3 and CloudFront,<br><span class="gradient">without the console maze.</span></h1>
+      <p class="tagline">Browse buckets, preview objects, transfer files, inspect permissions, and invalidate caches from one focused desktop workspace.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/Banegasn/s3-studio/releases/latest">↓&nbsp; Download latest</a>
+        <a class="btn ghost" href="https://github.com/Banegasn/s3-studio">★&nbsp; Star on GitHub</a>
+      </div>
+      <p class="subnote">Free and open source · Uses your local AWS CLI profiles · No cloud account to create</p>
+    </div>
+  </header>
+
+  <section class="product wrap reveal" aria-label="S3 Studio interface preview">
+    <div class="app-window">
+      <div class="window-top">
+        <span class="traffic"></span><span class="traffic"></span><span class="traffic"></span>
+        <span class="window-title">S3 Studio</span>
+        <div class="window-context">
+          <span class="mini-control">default ▾</span>
+          <span class="mini-control">eu-west-1</span>
+        </div>
+      </div>
+      <div class="app-body">
+        <aside class="pane buckets">
+          <span class="pane-label">S3</span>
+          <div class="pane-title">Buckets</div>
+          <div class="search">⌕ Filter buckets</div>
+          <div class="bucket active">acme-production</div>
+          <div class="bucket">acme-uploads</div>
+          <div class="bucket">static-assets</div>
+          <div class="bucket">data-archive</div>
+        </aside>
+        <section class="browser-pane">
+          <div class="toolbar">
+            <strong>acme-production</strong><span>›</span><span>assets</span>
+            <span class="grow"></span>
+            <span class="tool">↑ Files</span><span class="tool">Folder</span>
+          </div>
+          <table>
+            <thead><tr><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
+            <tbody>
+              <tr><td><span class="folder-icon">◆</span>images</td><td>—</td><td>Jul 8, 2026</td></tr>
+              <tr><td><span class="folder-icon">◆</span>fonts</td><td>—</td><td>Jul 7, 2026</td></tr>
+              <tr class="selected"><td><span class="file-icon">▱</span>index.html</td><td>18.4 KB</td><td>Jul 9, 2026</td></tr>
+              <tr><td><span class="file-icon">▱</span>manifest.json</td><td>2.1 KB</td><td>Jul 9, 2026</td></tr>
+              <tr><td><span class="file-icon">▱</span>styles.css</td><td>42.8 KB</td><td>Jul 9, 2026</td></tr>
+              <tr><td><span class="file-icon">▱</span>app.js</td><td>284 KB</td><td>Jul 9, 2026</td></tr>
+            </tbody>
+          </table>
+        </section>
+        <aside class="pane details">
+          <span class="pane-label">Object</span>
+          <div class="pane-title">index.html</div>
+          <div class="detail-card">
+            <h4>Details</h4>
+            <div class="meta"><span>Type</span><span>text/html</span><span>Size</span><span>18.4 KB</span><span>Storage</span><span>Standard</span></div>
+          </div>
+          <div class="detail-card">
+            <h4>CloudFront</h4>
+            <div class="meta"><span>Viewer path</span><span>/index.html</span></div>
+            <div class="distribution">E2ABC123 · d123.cloudfront.net</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+    <p class="caption">Your buckets, objects, permissions, and linked distributions in one place.</p>
+  </section>
+
+  <main class="wrap">
+    <section class="block reveal" id="features">
+      <span class="eyebrow">Everything in context</span>
+      <h2>Built for real S3 work.</h2>
+      <div class="grid">
+        <article class="card"><div class="chip">⌕</div><h3>Browse and preview</h3><p>Navigate prefixes and preview text, JSON, XML, HTML, CSS, JavaScript, images, and PDFs without downloading first.</p></article>
+        <article class="card"><div class="chip">↥</div><h3>Fast transfers</h3><p>Upload files or complete folders, drag them in from Finder or Explorer, and download single or multiple objects.</p></article>
+        <article class="card"><div class="chip">☁</div><h3>CloudFront aware</h3><p>Find distributions linked to a bucket and create object, folder wildcard, or multi-selection invalidations.</p></article>
+        <article class="card"><div class="chip">✓</div><h3>Multi-select</h3><p>Select objects and prefixes with checkboxes, keyboard ranges, Shift-click, or Cmd/Ctrl+A for bulk operations.</p></article>
+        <article class="card"><div class="chip">⌘</div><h3>Your AWS profiles</h3><p>Reads standard AWS CLI config and credentials, including custom config paths and the active AWS_PROFILE.</p></article>
+        <article class="card"><div class="chip">◎</div><h3>Permissions, clarified</h3><p>See ACLs, bucket policies, ownership controls, and public-access guardrails with a plain-language summary.</p></article>
+      </div>
+    </section>
+
+    <section class="block reveal" id="workflow">
+      <span class="eyebrow">A shorter path</span>
+      <h2>From object to fresh CDN in seconds.</h2>
+      <ol class="workflow">
+        <li><strong>Choose a profile</strong><span>S3 Studio discovers the credentials and profiles already configured on your machine.</span></li>
+        <li><strong>Work with your files</strong><span>Browse, inspect, upload, download, edit, or remove objects without losing bucket context.</span></li>
+        <li><strong>Invalidate confidently</strong><span>Matched origins and origin paths produce the correct CloudFront viewer path for you.</span></li>
+      </ol>
+    </section>
+
+    <section class="block reveal">
+      <div class="privacy">
+        <div>
+          <h3>Your AWS credentials stay local.</h3>
+          <p>S3 Studio uses the AWS CLI credentials already stored on your computer and talks directly to AWS. There is no S3 Studio account, proxy, or hosted control plane between you and your infrastructure.</p>
+        </div>
+        <div class="lock" aria-hidden="true">⌾</div>
+      </div>
+    </section>
+
+    <section class="block reveal">
+      <span class="eyebrow">Open source</span>
+      <h2>Inspect it. Build it. Make it yours.</h2>
+      <div class="grid">
+        <article class="card"><div class="chip">T</div><h3>Tauri desktop shell</h3><p>Small native bundles and a Rust backend, with a responsive React and TypeScript interface.</p></article>
+        <article class="card"><div class="chip">R</div><h3>Rust AWS operations</h3><p>S3 and CloudFront operations run through native AWS SDK clients with platform-native file dialogs.</p></article>
+        <article class="card"><div class="chip">↗</div><h3>Build for your platform</h3><p>Run <code>pnpm desktop:build</code> on macOS or Windows to produce the native bundle for that system.</p></article>
+      </div>
+      <div class="cta">
+        <a class="btn ghost" href="https://github.com/Banegasn/s3-studio#development">View build instructions</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a href="https://github.com/Banegasn/s3-studio">Banegasn/s3-studio</a> · Built with Tauri, Rust, React &amp; TypeScript<br>
+      A focused desktop workspace for Amazon S3 and CloudFront.
+    </div>
+  </footer>
+
+  <script>
+    document.documentElement.classList.add('js');
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in');
+          observer.unobserve(entry.target);
+        }
+      }
+    }, { rootMargin: '0px 0px -7% 0px', threshold: .06 });
+    document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
+  </script>
+</body>
+</html>

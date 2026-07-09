@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import './IconButton.css'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   active?: boolean

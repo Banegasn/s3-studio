@@ -1,0 +1,18 @@
+/* Checkbox styles */
+
+.check-row {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  color: #333d2d;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.check-row input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}

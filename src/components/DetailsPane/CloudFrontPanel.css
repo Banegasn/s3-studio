@@ -1,0 +1,132 @@
+/* CloudFrontPanel styles */
+
+.cloudfront-panel {
+  min-height: auto;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: var(--space-8);
+}
+
+.distribution-list {
+  min-height: auto;
+  overflow: visible;
+  display: grid;
+  align-content: start;
+  gap: var(--space-8);
+}
+
+.distribution-item {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
+}
+
+.distribution-title {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.distribution-title div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.distribution-title strong,
+.distribution-title span,
+.origin-line span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-title strong {
+  color: #222a1f;
+}
+
+.distribution-title span,
+.origin-line {
+  color: #6e7668;
+  font-size: var(--font-size-sm);
+}
+
+.status {
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.status.deployed {
+  background: #dceee1;
+  color: var(--color-success-fg);
+}
+
+.status.disabled {
+  background: #f2e6d7;
+  color: var(--color-warning-fg);
+}
+
+.origin-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.url-copy-list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.copy-url-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-14);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
+  background: #f3f6ef;
+}
+
+.copy-url-row span {
+  color: #687160;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.copy-url-row code {
+  min-width: 0;
+  overflow: hidden;
+  color: #253224;
+  word-break: break-word;
+  font: var(--font-size-sm)/1.2 var(--font-mono);
+}
+
+.copy-url-row button {
+  width: 28px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-hover);
+  color: var(--color-info-fg);
+  cursor: pointer;
+  border: 0;
+}
+
+.distribution-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-6);
+}

@@ -1,0 +1,18 @@
+/* Textarea styles */
+
+.textarea {
+  width: 100%;
+  min-height: 170px;
+  resize: vertical;
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-sm);
+  padding: var(--space-8);
+  color: #172014;
+  font: var(--font-size-sm)/1.45 var(--font-mono);
+  outline: none;
+}
+
+.textarea:focus {
+  border-color: var(--color-accent-light);
+  box-shadow: var(--shadow-sm);
+}

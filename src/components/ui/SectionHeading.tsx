@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import './SectionHeading.css'
 
 type Props = {
   icon: ReactNode

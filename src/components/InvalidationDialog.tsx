@@ -1,6 +1,7 @@
 import { CloudLightning, X } from 'lucide-react'
 import type { LinkedDistribution } from '../types'
 import { Modal, IconButton, Button, CheckRow } from './ui'
+import './InvalidationDialog.css'
 
 export type InvalidationDialogState = {
   title: string

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, ChevronDown, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import type { PermissionGrant, PrefixObjectPermissions, PublicAccessBlock } from '../types'
 import { SectionHeading, Button, IconButton, Input, Select, Card, EmptyState, CheckRow } from './ui'
+import './PermissionsPanel.css'
 
 const PERMISSIONS = ['READ', 'WRITE', 'READ_ACP', 'WRITE_ACP', 'FULL_CONTROL']
 const GRANTEE_TYPES = ['CanonicalUser', 'Group', 'AmazonCustomerByEmail']

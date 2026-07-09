@@ -3,6 +3,7 @@ import { ChevronRight, Download, File, Folder, Loader2, RefreshCw, Trash2, Uploa
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
 import { Button, IconButton, SearchBox, EmptyState } from './ui'
+import './BrowserPane.css'
 
 export type SelectionMode = 'single' | 'toggle' | 'range'
 

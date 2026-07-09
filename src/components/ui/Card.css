@@ -1,0 +1,8 @@
+/* Card styles */
+
+.card {
+  padding: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
+}

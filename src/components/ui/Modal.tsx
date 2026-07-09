@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import './Modal.css'
 
 type Props = {
   children: ReactNode
