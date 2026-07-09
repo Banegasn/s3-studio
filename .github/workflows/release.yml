@@ -27,11 +27,11 @@ jobs:
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
           - name: Linux x64
             platform: ubuntu-22.04
-            args: ""
+            args: --bundles deb,rpm
             rust-targets: ""
           - name: Linux ARM64
             platform: ubuntu-22.04-arm
-            args: ""
+            args: --bundles deb,rpm
             rust-targets: ""
           - name: Windows x64
             platform: windows-latest
@@ -81,6 +81,6 @@ jobs:
             Desktop builds for S3 Studio.
 
             Download the asset for your operating system from this release.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
