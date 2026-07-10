@@ -1,0 +1,17 @@
+{
+  "name": "S3 Studio",
+  "short_name": "S3 Studio",
+  "description": "A focused desktop workspace for S3 and CloudFront operations.",
+  "start_url": "/s3-studio/",
+  "display": "standalone",
+  "background_color": "#071018",
+  "theme_color": "#071018",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -3,893 +3,795 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f4f1e8">
-  <title>S3 Studio — Desktop operations for S3 and CloudFront</title>
-  <meta name="description" content="A native-feeling desktop workspace for S3 buckets, prefixes, object transfers, ACLs, and CloudFront invalidations. Open source and built with Tauri.">
-  <meta property="og:title" content="S3 Studio — Desktop operations for S3 and CloudFront">
-  <meta property="og:description" content="Browse buckets, edit prefixes, move files, inspect permissions, and invalidate CloudFront without living in the AWS Console.">
+  <meta name="theme-color" content="#071018">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="S3 Studio is a source-available desktop workspace for browsing S3, editing objects, transferring files, reviewing access, and creating CloudFront invalidations with your local AWS profiles.">
+  <meta name="robots" content="index, follow">
+  <title>S3 Studio — A focused desktop workspace for S3</title>
+
+  <link rel="canonical" href="https://banegasn.github.io/s3-studio/">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="site.webmanifest">
+
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="S3 Studio">
+  <meta property="og:title" content="S3 Studio — A focused desktop workspace for S3">
+  <meta property="og:description" content="Browse, transfer, inspect, edit, and invalidate without the AWS Console sprawl.">
   <meta property="og:url" content="https://banegasn.github.io/s3-studio/">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23e8f1df'/><path d='M50 16 84 50 50 84 16 50z' fill='%232d5e72'/><path d='M50 16v68M16 50h68' stroke='%23f7f2e8' stroke-width='7'/></svg>">
+  <meta property="og:image" content="https://raw.githubusercontent.com/Banegasn/s3-studio/main/src-tauri/icons/icon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="S3 Studio — A focused desktop workspace for S3">
+  <meta name="twitter:description" content="Browse, transfer, inspect, edit, and invalidate without the AWS Console sprawl.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/Banegasn/s3-studio/main/src-tauri/icons/icon.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "S3 Studio",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Windows, Linux",
+    "description": "A source-available desktop workspace for S3 and CloudFront operations using local AWS CLI profiles.",
+    "url": "https://banegasn.github.io/s3-studio/",
+    "downloadUrl": "https://github.com/Banegasn/s3-studio/releases/latest",
+    "softwareHelp": "https://github.com/Banegasn/s3-studio#readme",
+    "isAccessibleForFree": true
+  }
+  </script>
+
   <style>
     :root {
-      color-scheme: light;
-      --paper: #f4f1e8;
-      --paper-2: #fbfaf6;
-      --ink: #18221c;
-      --muted: #667166;
-      --quiet: #8a9388;
-      --line: #d7ddcf;
-      --line-strong: #bdc9b7;
-      --panel: rgba(255,255,255,.78);
-      --green: #dfeeda;
-      --green-2: #b9d8aa;
-      --blue: #275e75;
-      --blue-2: #143b4d;
-      --orange: #d88725;
-      --red: #9f3d2d;
-      --shadow: 0 28px 90px rgba(33, 49, 36, .18);
-      --radius: 22px;
-      --max: 1180px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --page: #071018;
+      --page-raised: #0a151e;
+      --panel: #0f1c25;
+      --panel-2: #13222c;
+      --panel-3: #172934;
+      --ink: #edf5ef;
+      --ink-strong: #fff5da;
+      --muted: #9baca5;
+      --quiet: #73867e;
+      --line: #263a43;
+      --line-light: #334c54;
+      --cyan: #31d7ee;
+      --cyan-soft: #102e38;
+      --amber: #f2a81d;
+      --green: #7fdda7;
+      --red: #ff9f91;
+      --cream: #fff2d2;
+      --white: #ffffff;
+      --max: 1200px;
+      --radius: 18px;
+      --radius-lg: 28px;
+      --shadow: 0 34px 100px rgba(0, 0, 0, .42);
       --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; }
     html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
     body {
       min-width: 320px;
+      margin: 0;
       overflow-x: hidden;
       background:
-        linear-gradient(90deg, rgba(24,34,28,.045) 1px, transparent 1px),
-        linear-gradient(180deg, rgba(24,34,28,.045) 1px, transparent 1px),
-        radial-gradient(900px 520px at 75% -10%, rgba(223,238,218,.95), transparent 62%),
-        radial-gradient(820px 420px at -10% 30%, rgba(216,135,37,.12), transparent 66%),
-        var(--paper);
-      background-size: 44px 44px, 44px 44px, auto, auto, auto;
+        radial-gradient(900px 520px at 76% -8%, rgba(49, 215, 238, .12), transparent 65%),
+        radial-gradient(760px 420px at 4% 18%, rgba(242, 168, 29, .07), transparent 66%),
+        var(--page);
       color: var(--ink);
-      font: 16px/1.55 var(--sans);
+      font: 15px/1.6 var(--sans);
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
     a { color: inherit; text-decoration: none; }
     button, input { font: inherit; }
-    .wrap { width: min(100% - 44px, var(--max)); margin-inline: auto; }
+    img, svg { display: block; }
+    section { scroll-margin-top: 86px; }
+    .wrap { width: min(calc(100% - 40px), var(--max)); margin-inline: auto; }
+
+    .skip-link {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      padding: 9px 13px;
+      border-radius: 8px;
+      background: var(--white);
+      color: #071018;
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: translateY(0); }
+
+    :focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
 
     .nav {
       position: sticky;
       top: 0;
-      z-index: 20;
-      border-bottom: 1px solid rgba(189,201,183,.75);
-      background: rgba(244,241,232,.78);
-      backdrop-filter: blur(18px) saturate(135%);
+      z-index: 50;
+      border-bottom: 1px solid rgba(51, 76, 84, .72);
+      background: rgba(7, 16, 24, .78);
+      backdrop-filter: blur(18px) saturate(140%);
     }
 
     .nav-inner {
-      height: 68px;
+      min-height: 68px;
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 20px;
     }
 
     .brand {
       display: inline-flex;
       align-items: center;
-      gap: 12px;
-      font-weight: 780;
-      letter-spacing: -.03em;
+      gap: 11px;
+      color: var(--ink-strong);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -.02em;
+      white-space: nowrap;
     }
 
-    .brand-mark {
-      width: 36px;
-      height: 36px;
+    .brand-icon {
+      width: 34px;
+      height: 34px;
       display: grid;
       place-items: center;
-      border: 1px solid #c8d7be;
+      border: 1px solid #36545a;
       border-radius: 10px;
-      background: #e8f1df;
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.72);
+      background: #142a2d;
+      box-shadow: inset 0 1px rgba(255, 255, 255, .08);
     }
+    .brand-icon svg { width: 24px; height: 24px; }
 
-    .brand-mark svg { width: 23px; height: 23px; }
-    .nav-links { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+    .nav-links {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
     .nav-links a {
-      padding: 8px 11px;
-      border-radius: 999px;
+      padding: 7px 10px;
+      border-radius: 8px;
       color: var(--muted);
       font-size: 13px;
       font-weight: 680;
     }
-    .nav-links a:hover { background: rgba(255,255,255,.7); color: var(--ink); }
+    .nav-links a:hover { background: var(--panel); color: var(--ink); }
 
-    .download {
+    .button {
+      min-height: 42px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 9px;
-      min-height: 42px;
       padding: 0 16px;
-      border: 1px solid #123748;
-      border-radius: 999px;
-      background: var(--blue-2);
-      color: #fffaf0;
-      font-size: 13px;
-      font-weight: 760;
-      box-shadow: 0 13px 30px rgba(20,59,77,.22);
-    }
-
-    .download:hover { transform: translateY(-1px); }
-
-    .hero {
-      padding: 76px 0 36px;
-    }
-
-    .hero-grid {
-      display: grid;
-      grid-template-columns: .88fr 1.12fr;
-      align-items: center;
-      gap: 42px;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 9px;
-      margin-bottom: 20px;
-      padding: 7px 12px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(255,255,255,.64);
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .eyebrow::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #4d8a5c;
-      box-shadow: 0 0 0 5px rgba(77,138,92,.12);
-    }
-
-    h1 {
-      max-width: 620px;
-      font-size: clamp(46px, 6.1vw, 84px);
-      line-height: .92;
-      letter-spacing: -.07em;
-      font-weight: 860;
-    }
-
-    .lede {
-      max-width: 560px;
-      margin-top: 24px;
-      color: #566152;
-      font-size: clamp(17px, 2vw, 20px);
-      line-height: 1.55;
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      margin-top: 30px;
-    }
-
-    .secondary {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 42px;
-      padding: 0 16px;
-      border: 1px solid var(--line-strong);
-      border-radius: 999px;
-      background: rgba(255,255,255,.7);
+      border: 1px solid var(--line-light);
+      border-radius: 10px;
+      background: var(--panel);
       color: var(--ink);
       font-size: 13px;
       font-weight: 760;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+    .button:hover { transform: translateY(-1px); border-color: #527078; background: var(--panel-2); }
+    .button.primary {
+      border-color: var(--cyan);
+      background: var(--cyan);
+      color: #061118;
+      box-shadow: 0 14px 34px rgba(49, 215, 238, .2);
+    }
+    .button.primary:hover { background: #67e6f5; }
+    .button svg { width: 16px; height: 16px; }
+
+    .hero { padding: 88px 0 54px; }
+    .hero-copy { max-width: 860px; margin-inline: auto; text-align: center; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 22px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(15, 28, 37, .7);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 720;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(127, 221, 167, .12);
     }
 
-    .secondary:hover { background: #fff; }
-
-    .fine-print {
-      margin-top: 16px;
-      color: var(--quiet);
-      font-size: 13px;
+    h1, h2, h3, p { margin: 0; }
+    h1 {
+      color: var(--cream);
+      font-size: clamp(46px, 7.3vw, 88px);
+      line-height: .96;
+      letter-spacing: -.068em;
+      font-weight: 850;
     }
+    .hero-copy h1 span { color: var(--cyan); }
+    .lede {
+      max-width: 700px;
+      margin: 25px auto 0;
+      color: var(--muted);
+      font-size: clamp(17px, 2vw, 21px);
+      line-height: 1.55;
+    }
+    .hero-actions {
+      margin-top: 30px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+    .hero-actions.left { justify-content: flex-start; }
+    .hero-note { margin-top: 15px; color: var(--quiet); font-size: 12px; }
 
-    .product-shell {
+    .product-stage {
       position: relative;
-      border: 1px solid rgba(24,34,28,.16);
-      border-radius: 28px;
-      background: rgba(255,255,255,.48);
-      padding: 10px;
+      margin-top: 64px;
+      padding: 1px;
+      border-radius: 27px;
+      background: linear-gradient(135deg, rgba(49, 215, 238, .65), rgba(242, 168, 29, .24) 38%, rgba(51, 76, 84, .28) 74%);
       box-shadow: var(--shadow);
     }
-
-    .product-shell::before {
+    .product-stage::before {
       content: "";
       position: absolute;
-      inset: -22px 36px auto auto;
-      width: 170px;
+      inset: -70px 10% auto;
       height: 170px;
-      border-radius: 50%;
-      background: rgba(216,135,37,.22);
-      filter: blur(30px);
       z-index: -1;
+      background: rgba(49, 215, 238, .12);
+      filter: blur(80px);
     }
-
-    .app {
+    .app-window {
       overflow: hidden;
-      border: 1px solid #cad5c2;
-      border-radius: 22px;
-      background: #f9faf5;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+      border-radius: 26px;
+      background: #071018;
     }
-
-    .titlebar {
-      height: 45px;
+    .app-titlebar {
+      height: 58px;
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 0 14px;
-      border-bottom: 1px solid #d8dfd2;
-      background: #f5f7ef;
+      padding: 0 13px;
+      border-bottom: 1px solid #26333d;
+      background: #09131b;
     }
+    .traffic { display: flex; gap: 7px; margin-right: 4px; }
+    .traffic i { width: 10px; height: 10px; border-radius: 50%; background: #ff6159; }
+    .traffic i:nth-child(2) { background: #ffbd2e; }
+    .traffic i:nth-child(3) { background: #28c941; }
+    .app-brand { display: flex; align-items: center; gap: 7px; color: #fff2d2; font-size: 11px; font-weight: 780; }
+    .mini-logo { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid #31464b; border-radius: 7px; background: #14282b; }
+    .mini-logo svg { width: 16px; height: 16px; }
+    .app-context { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .context-control { display: grid; grid-template-columns: auto auto; align-items: center; gap: 5px; }
+    .context-control small { color: #83928c; font-size: 7px; font-weight: 800; text-transform: uppercase; }
+    .context-value { min-width: 76px; padding: 5px 7px; border: 1px solid #33464f; border-radius: 6px; background: #101c25; color: #e8f0ea; font: 8px var(--mono); }
+    .context-icon { width: 25px; height: 25px; display: grid; place-items: center; border: 1px solid #33464f; border-radius: 6px; color: #9baca5; font-size: 11px; }
 
-    .lights { width: 11px; height: 11px; border-radius: 50%; background: #f0644b; }
-    .lights:nth-child(2) { background: #e5b443; }
-    .lights:nth-child(3) { background: #67b65f; }
-    .titlebar strong {
-      margin-left: 9px;
-      color: #26302a;
-      font-size: 12px;
-      letter-spacing: -.02em;
-    }
-    .titlebar .slot {
-      margin-left: auto;
-      display: flex;
-      gap: 8px;
-      color: var(--muted);
-      font: 10px var(--mono);
-    }
-    .slot span {
-      padding: 5px 8px;
-      border: 1px solid #cdd8c6;
-      border-radius: 7px;
-      background: #fff;
-    }
+    .app-workspace { min-height: 520px; display: grid; grid-template-columns: 190px minmax(0, 1fr) 274px; }
+    .mock-buckets { min-width: 0; padding: 15px 9px; border-right: 1px solid #26333d; background: #0b151e; }
+    .mock-panel-title { display: flex; align-items: center; justify-content: space-between; padding: 0 7px 10px; color: #edf5ef; font-size: 11px; font-weight: 780; }
+    .mock-count { padding: 2px 7px; border-radius: 999px; background: #162633; color: #9fb1aa; font-size: 8px; }
+    .mock-search { height: 30px; display: flex; align-items: center; gap: 6px; margin: 0 3px 9px; padding: 0 8px; border: 1px solid #35454f; border-radius: 6px; background: #101c25; color: #71837c; font-size: 9px; }
+    .mock-bucket { overflow: hidden; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 8px; border-radius: 6px; color: #b9c5c0; font-size: 9px; white-space: nowrap; text-overflow: ellipsis; }
+    .mock-bucket::before { content: "✣"; flex: 0 0 auto; color: #84958e; }
+    .mock-bucket.active { background: #162633; color: #fff2d2; font-weight: 760; box-shadow: inset 2px 0 var(--cyan); }
 
-    .app-grid {
-      display: grid;
-      grid-template-columns: 156px 1fr 205px;
-      min-height: 420px;
-    }
+    .mock-browser { min-width: 0; display: grid; grid-template-rows: auto auto 1fr; background: #071018; }
+    .mock-toolbar { display: grid; grid-template-columns: minmax(170px, 1fr) auto; gap: 7px; padding: 10px; border-bottom: 1px solid #26333d; background: #101c25; }
+    .mock-path { min-width: 0; height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid #35454f; border-radius: 6px; background: #0d1921; color: var(--cyan); font-size: 9px; font-weight: 720; }
+    .mock-path span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mock-path b { color: #72847d; font-weight: 500; }
+    .mock-actions { display: flex; gap: 4px; }
+    .mock-action { height: 30px; display: flex; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid #35454f; border-radius: 6px; background: #0d1921; color: #dfe9e3; font-size: 8px; font-weight: 750; }
+    .mock-action.danger { color: var(--red); }
+    .mock-filter-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; color: #7f9089; font-size: 8px; }
+    .mock-filter-row .mock-search { width: 52%; min-width: 160px; margin: 0; }
+    .mock-table-wrap { min-width: 0; margin: 0 10px 10px; overflow: hidden; border: 1px solid #26333d; border-radius: 8px; background: #101c25; }
+    .mock-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9px; }
+    .mock-table th { height: 33px; padding: 0 8px; background: #111f28; color: #899a93; text-align: left; font-size: 7px; letter-spacing: .06em; text-transform: uppercase; }
+    .mock-table th:first-child { width: 28px; text-align: center; }
+    .mock-table th:nth-child(3) { width: 70px; }
+    .mock-table th:nth-child(4) { width: 102px; }
+    .mock-table td { height: 35px; overflow: hidden; padding: 0 8px; border-top: 1px solid #1e2b34; color: #dce6e0; text-overflow: ellipsis; white-space: nowrap; }
+    .mock-table td:first-child { padding: 0; text-align: center; color: #7e9189; }
+    .mock-table tr.selected td { background: #162633; }
+    .file-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .file-name i { color: var(--amber); font-style: normal; }
+    .file-name.code i { color: var(--cyan); }
+    .row-muted { color: #75867f !important; }
 
-    .sidebar {
-      padding: 14px;
-      border-right: 1px solid #dbe2d6;
-      background: #eef3e8;
-    }
+    .mock-inspector { min-width: 0; padding: 13px; border-left: 1px solid #26333d; background: #0b151e; }
+    .inspector-kicker { color: #74877f; font-size: 7px; text-transform: uppercase; }
+    .inspector-title { overflow: hidden; margin-top: 4px; color: #fff2d2; font-size: 12px; font-weight: 780; text-overflow: ellipsis; white-space: nowrap; }
+    .code-card { margin-top: 11px; overflow: hidden; border: 1px solid #2c3a43; border-radius: 8px; background: #0e1a23; }
+    .code-toolbar { height: 30px; display: flex; align-items: center; gap: 5px; padding: 0 7px; border-bottom: 1px solid #26333d; color: #8ea099; font: 7px var(--mono); }
+    .code-toolbar span:first-child { margin-right: auto; }
+    .code-tool { width: 19px; height: 19px; display: grid; place-items: center; border: 1px solid #33464f; border-radius: 4px; color: #b9c7c1; font: 9px var(--sans); }
+    .code-tool.save { border-color: #1da7b8; background: #1da7b8; color: #061118; }
+    .code-area { min-height: 164px; padding: 11px 8px; color: #bfd1c9; font: 8px/1.7 var(--mono); }
+    .code-line { display: grid; grid-template-columns: 18px 1fr; }
+    .line-num { color: #4f625a; user-select: none; }
+    .syntax-key { color: #67e8f9; }
+    .syntax-string { color: #f5c56b; }
+    .syntax-bool { color: #ff9f91; }
+    .detail-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+    .detail-fact { min-width: 0; padding: 7px; border: 1px solid #2c3a43; border-radius: 6px; background: #101c25; }
+    .detail-fact span { display: block; color: #788b83; font-size: 6px; font-weight: 760; text-transform: uppercase; }
+    .detail-fact strong { overflow: hidden; display: block; margin-top: 2px; color: #e6eee9; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+    .permission-card { margin-top: 9px; padding: 9px; border: 1px solid #2c3a43; border-radius: 8px; background: #101c25; }
+    .permission-head { display: flex; align-items: center; gap: 5px; color: var(--cyan); font-size: 8px; font-weight: 780; }
+    .permission-head span:last-child { margin-left: auto; padding: 2px 6px; border-radius: 999px; background: #102e38; }
+    .permission-copy { margin-top: 6px; color: #879991; font-size: 7px; line-height: 1.45; }
 
-    .label {
-      color: #71806d;
-      font-size: 9px;
-      font-weight: 820;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-    }
-
-    .count {
-      float: right;
-      padding: 2px 7px;
-      border-radius: 999px;
-      background: #dfeeda;
-      color: #41603f;
-      font-size: 10px;
-      font-weight: 820;
-      letter-spacing: 0;
-    }
-
-    .search {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      margin: 12px 0 10px;
-      min-height: 34px;
-      padding: 0 10px;
-      border: 1px solid #cad5c2;
-      border-radius: 9px;
-      background: #fff;
-      color: #8a9487;
-      font-size: 11px;
-    }
-
-    .bucket-row {
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 9px;
-      border-radius: 9px;
-      color: #3d473f;
-      font-size: 11px;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-    .bucket-row::before {
-      content: "✣";
-      color: #2d5e72;
-      font-size: 11px;
-    }
-    .bucket-row.active {
-      background: #dfeeda;
-      color: #1b482f;
-      font-weight: 760;
-    }
-
-    .browser {
-      min-width: 0;
-      background: #fbfcf8;
-    }
-
-    .pathbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 58px;
-      padding: 12px 14px;
-      border-bottom: 1px solid #dbe2d6;
-    }
-
-    .crumb {
-      color: var(--blue);
-      font-size: 12px;
-      font-weight: 690;
-    }
-
-    .prefix-input {
-      min-width: 0;
-      flex: 1;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      border: 1px solid #c7d2bf;
-      border-radius: 9px;
-      background: #fff;
-      color: #273229;
-      font: 11px var(--mono);
-    }
-
-    .toolbar {
-      display: flex;
-      gap: 8px;
-      padding: 12px 14px;
-      border-bottom: 1px solid #dbe2d6;
-    }
-
-    .tool {
-      padding: 7px 10px;
-      border: 1px solid #cbd6c4;
-      border-radius: 9px;
-      background: #fff;
-      color: #2e372f;
-      font-size: 11px;
-      font-weight: 760;
-    }
-    .tool.green { background: #dfeeda; border-color: #c4d9b9; }
-    .tool.red { color: var(--red); }
-
-    .table {
-      padding: 12px 14px 18px;
-    }
-
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th {
-      padding: 10px;
-      background: #eef3e8;
-      color: #697667;
-      text-align: left;
-      font-size: 9px;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    th:first-child { border-radius: 10px 0 0 0; }
-    th:last-child { border-radius: 0 10px 0 0; }
-    td {
-      padding: 11px 10px;
-      border-bottom: 1px solid #e5eadf;
-      color: #3b463d;
-      vertical-align: middle;
-    }
-    tr.selected td { background: #edf6e9; }
-    .folder { color: #cb8227; margin-right: 8px; }
-    .muted { color: #899488; }
-
-    .inspector {
-      padding: 14px;
-      border-left: 1px solid #dbe2d6;
-      background: #f2f5ec;
-    }
-
-    .preview-min {
-      height: 128px;
-      display: grid;
-      place-items: center;
-      border: 1px solid #d6dfcf;
-      border-radius: 15px;
-      background: #fbfcf8;
-      color: #2d5e72;
-      text-align: center;
-      font-size: 12px;
-      font-weight: 760;
-    }
-    .preview-min small {
-      display: block;
-      margin-top: 5px;
-      color: #7a8579;
-      font-weight: 620;
-    }
-
-    .stat-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 10px 0;
-    }
-
-    .stat {
-      min-width: 0;
-      padding: 10px;
-      border: 1px solid #d6dfcf;
-      border-radius: 12px;
-      background: #fff;
-    }
-    .stat span {
-      display: block;
-      color: #7d887b;
-      font-size: 9px;
-      font-weight: 820;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-    }
-    .stat strong {
-      overflow: hidden;
-      display: block;
-      margin-top: 3px;
-      font-size: 11px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .access {
-      margin-top: 10px;
-      border: 1px solid #ccd8c5;
-      border-radius: 15px;
-      background: #fff;
-    }
-    .access-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 11px 12px;
-      color: #2d5e72;
-      font-size: 12px;
-      font-weight: 820;
-    }
-    .access-head span:last-child {
-      color: #6f7b6b;
-      font-size: 10px;
-    }
-    .acl-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 7px;
-      padding: 9px 12px;
-      border-top: 1px solid #edf0e9;
-      color: #42503f;
-      font-size: 10px;
-    }
-    .acl-row b { color: #26302a; }
-
-    .strip {
-      margin: 36px auto 0;
+    .trust-row {
+      margin-top: 22px;
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(255,255,255,.58);
+      border-radius: 15px;
+      background: rgba(15, 28, 37, .62);
+    }
+    .trust-item { padding: 15px 17px; border-right: 1px solid var(--line); }
+    .trust-item:last-child { border-right: 0; }
+    .trust-item strong { display: block; color: var(--ink-strong); font-size: 13px; }
+    .trust-item span { display: block; margin-top: 2px; color: var(--quiet); font-size: 11px; }
+
+    .section { padding: 92px 0; }
+    .section-label { color: var(--cyan); font: 750 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .section-heading { margin-top: 11px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 430px); gap: 42px; align-items: end; }
+    .section-heading h2 { max-width: 740px; color: var(--cream); font-size: clamp(34px, 4.4vw, 58px); line-height: 1.02; letter-spacing: -.055em; }
+    .section-heading p { color: var(--muted); font-size: 16px; }
+
+    .feature-grid { margin-top: 36px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 13px; }
+    .feature-card {
+      min-height: 260px;
       overflow: hidden;
-    }
-    .strip div {
-      padding: 18px;
-      border-right: 1px solid var(--line);
-    }
-    .strip div:last-child { border-right: 0; }
-    .strip strong {
-      display: block;
-      font-size: 24px;
-      letter-spacing: -.04em;
-    }
-    .strip span {
-      display: block;
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    section { padding: 76px 0; }
-    .section-head {
-      display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 24px;
-      margin-bottom: 26px;
-    }
-    .section-head h2 {
-      max-width: 680px;
-      font-size: clamp(32px, 4vw, 52px);
-      line-height: .98;
-      letter-spacing: -.055em;
-    }
-    .section-head p {
-      max-width: 420px;
-      color: var(--muted);
-      font-size: 15px;
-    }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
-    }
-    .card {
-      min-height: 220px;
-      padding: 22px;
+      position: relative;
+      padding: 24px;
       border: 1px solid var(--line);
-      border-radius: 22px;
-      background: rgba(255,255,255,.62);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(19, 34, 44, .96), rgba(10, 21, 30, .96));
     }
-    .card .num {
-      display: inline-grid;
-      place-items: center;
-      width: 34px;
-      height: 34px;
-      margin-bottom: 28px;
-      border-radius: 10px;
-      background: #e5efe0;
-      color: #2b5b39;
-      font: 800 12px var(--mono);
-    }
-    .card h3 {
-      font-size: 20px;
-      line-height: 1.1;
-      letter-spacing: -.035em;
-    }
-    .card p {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 14px;
+    .feature-card.large { grid-column: span 7; }
+    .feature-card.medium { grid-column: span 5; }
+    .feature-card.third { grid-column: span 4; }
+    .feature-icon { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #36525a; border-radius: 10px; background: var(--cyan-soft); color: var(--cyan); }
+    .feature-icon svg { width: 18px; height: 18px; }
+    .feature-card h3 { margin-top: 32px; color: var(--ink-strong); font-size: 23px; line-height: 1.15; letter-spacing: -.035em; }
+    .feature-card p { max-width: 500px; margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .feature-list { margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; list-style: none; }
+    .feature-list li { padding: 5px 8px; border: 1px solid #2e454d; border-radius: 999px; color: #aebdb7; font-size: 10px; font-weight: 680; }
+    .feature-card.highlight { background: linear-gradient(145deg, #12303a, #0b1821 68%); }
+    .feature-card.warm { background: linear-gradient(145deg, #282114, #0d1921 64%); }
+    .feature-card.warm .feature-icon { border-color: #584625; background: #302512; color: var(--amber); }
+
+    .path-visual { margin-top: 25px; display: flex; align-items: center; gap: 4px; padding: 10px; border: 1px solid #30454d; border-radius: 9px; background: #0d1921; color: #80938b; font: 10px var(--mono); }
+    .path-visual span { padding: 4px 6px; border-radius: 5px; color: var(--cyan); background: #102e38; }
+    .transfer-visual { margin-top: 25px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 9px; }
+    .transfer-box { padding: 10px; border: 1px solid #30454d; border-radius: 9px; background: #0d1921; color: #b9c7c1; font-size: 10px; }
+    .transfer-arrow { color: var(--cyan); font-size: 18px; }
+
+    .workflow-grid { margin-top: 38px; display: grid; grid-template-columns: .95fr 1.05fr; gap: 16px; }
+    .workflow-copy { display: grid; gap: 10px; }
+    .workflow-step { padding: 20px; border: 1px solid var(--line); border-radius: 15px; background: rgba(15, 28, 37, .72); }
+    .step-top { display: flex; align-items: center; gap: 10px; }
+    .step-number { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--cyan-soft); color: var(--cyan); font: 750 10px var(--mono); }
+    .workflow-step h3 { color: var(--ink-strong); font-size: 17px; letter-spacing: -.025em; }
+    .workflow-step p { margin-top: 7px; color: var(--muted); font-size: 13px; }
+    .edge-card { padding: 26px; border: 1px solid #31515a; border-radius: 20px; background: linear-gradient(145deg, #102e38, #0a1720); }
+    .edge-card small { color: var(--cyan); font: 750 10px var(--mono); text-transform: uppercase; }
+    .edge-card h3 { margin-top: 15px; color: var(--cream); font-size: 30px; line-height: 1.08; letter-spacing: -.045em; }
+    .edge-card p { margin-top: 10px; color: #a9bbb4; }
+    .invalidation { margin-top: 26px; overflow: hidden; border: 1px solid #35535c; border-radius: 11px; background: #0b1821; }
+    .invalidation-head { padding: 10px 12px; border-bottom: 1px solid #29424a; color: #d9e5df; font-size: 11px; font-weight: 760; }
+    .invalidation-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 12px; color: #9eafa8; font: 10px var(--mono); }
+    .check { width: 15px; height: 15px; display: grid; place-items: center; border-radius: 4px; background: var(--cyan); color: #071018; font-size: 9px; }
+    .queue { padding: 5px 8px; border-radius: 6px; background: var(--cyan); color: #071018; font: 760 9px var(--sans); }
+
+    .security-panel { margin-top: 36px; display: grid; grid-template-columns: .9fr 1.1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 22px; background: #0a151e; }
+    .architecture { padding: 28px; border-right: 1px solid var(--line); background: #09131b; }
+    .architecture pre { margin: 0; color: #bad0c7; font: 12px/1.8 var(--mono); white-space: pre-wrap; }
+    .architecture .comment { color: #5f8174; }
+    .architecture .accent { color: var(--amber); }
+    .security-copy { padding: 28px; display: grid; gap: 18px; }
+    .security-item { display: grid; grid-template-columns: 28px 1fr; gap: 11px; }
+    .security-check { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #31515a; border-radius: 8px; background: var(--cyan-soft); color: var(--cyan); font-weight: 800; }
+    .security-item h3 { color: var(--ink-strong); font-size: 15px; }
+    .security-item p { margin-top: 3px; color: var(--muted); font-size: 13px; }
+
+    .faq { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    details { border: 1px solid var(--line); border-radius: 13px; background: rgba(15, 28, 37, .72); }
+    summary { padding: 17px 18px; color: var(--ink-strong); cursor: pointer; font-weight: 720; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; float: right; color: var(--cyan); }
+    details[open] summary::after { content: "−"; }
+    details p { padding: 0 18px 18px; color: var(--muted); font-size: 13px; }
+
+    .download-section { padding: 72px 0 100px; }
+    .download-card { overflow: hidden; position: relative; padding: 38px; border: 1px solid #38545c; border-radius: var(--radius-lg); background: linear-gradient(135deg, #12313b, #0c1a23 62%); }
+    .download-card::after { content: ""; position: absolute; width: 360px; height: 360px; right: -130px; top: -190px; border-radius: 50%; background: rgba(49, 215, 238, .12); filter: blur(10px); }
+    .download-grid { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: center; }
+    .download-card h2 { max-width: 660px; color: var(--cream); font-size: clamp(34px, 4.5vw, 56px); line-height: 1; letter-spacing: -.055em; }
+    .download-card p { max-width: 590px; margin-top: 13px; color: #a9bbb4; }
+    .platforms { min-width: 270px; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .platforms span { padding: 9px 11px; border: 1px solid #38545c; border-radius: 8px; background: rgba(7, 16, 24, .42); color: #c7d5cf; font-size: 10px; font-weight: 720; }
+
+    footer { border-top: 1px solid var(--line); color: var(--quiet); font-size: 12px; }
+    .footer-inner { min-height: 86px; display: flex; align-items: center; gap: 18px; }
+    .footer-inner .brand { margin-right: auto; }
+    .footer-inner a:not(.brand) { color: var(--muted); font-weight: 680; }
+    .footer-inner a:hover { color: var(--ink); }
+
+    @media (max-width: 1020px) {
+      .app-workspace { grid-template-columns: 170px minmax(0, 1fr); }
+      .mock-inspector { display: none; }
+      .feature-card.large, .feature-card.medium { grid-column: span 6; }
+      .feature-card.third { grid-column: span 6; }
+      .workflow-grid, .security-panel { grid-template-columns: 1fr; }
+      .architecture { border-right: 0; border-bottom: 1px solid var(--line); }
+      .download-grid { grid-template-columns: 1fr; }
     }
 
-    .workflow {
-      display: grid;
-      grid-template-columns: .8fr 1.2fr;
-      gap: 18px;
-      align-items: stretch;
-    }
-    .terminal {
-      padding: 22px;
-      border: 1px solid #1f3f4e;
-      border-radius: 22px;
-      background: #102a36;
-      color: #d9efe5;
-      box-shadow: 0 24px 70px rgba(16,42,54,.22);
-    }
-    .terminal pre {
-      white-space: pre-wrap;
-      color: #cee6dc;
-      font: 13px/1.75 var(--mono);
-    }
-    .terminal .comment { color: #7eb69e; }
-    .terminal .accent { color: #f0c174; }
-    .panel-list {
-      display: grid;
-      gap: 12px;
-    }
-    .panel-list article {
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(255,255,255,.62);
-    }
-    .panel-list h3 {
-      font-size: 18px;
-      letter-spacing: -.03em;
-    }
-    .panel-list p {
-      margin-top: 7px;
-      color: var(--muted);
-      font-size: 14px;
+    @media (max-width: 760px) {
+      .wrap { width: min(calc(100% - 28px), var(--max)); }
+      .nav-inner { min-height: 60px; gap: 9px; }
+      .nav-links { display: none; }
+      .nav .button { margin-left: auto; min-height: 36px; padding-inline: 12px; }
+      .hero { padding-top: 60px; }
+      .product-stage { margin-top: 46px; }
+      .app-titlebar { height: 50px; }
+      .context-control { display: none; }
+      .app-workspace { min-height: 430px; grid-template-columns: 1fr; }
+      .mock-buckets { display: none; }
+      .mock-toolbar { grid-template-columns: 1fr; }
+      .mock-actions { justify-content: flex-start; }
+      .mock-action { flex: 1; justify-content: center; padding-inline: 4px; }
+      .mock-table th:nth-child(4), .mock-table td:nth-child(4) { display: none; }
+      .trust-row { grid-template-columns: 1fr 1fr; }
+      .trust-item:nth-child(2) { border-right: 0; }
+      .trust-item:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      .section { padding: 72px 0; }
+      .section-heading { grid-template-columns: 1fr; gap: 14px; }
+      .feature-card.large, .feature-card.medium, .feature-card.third { grid-column: 1 / -1; }
+      .faq { grid-template-columns: 1fr; }
+      .download-card { padding: 26px; }
+      .platforms { min-width: 0; }
+      .footer-inner { padding: 22px 0; flex-wrap: wrap; }
     }
 
-    .release {
-      overflow: hidden;
-      border: 1px solid rgba(20,59,77,.25);
-      border-radius: 28px;
-      background:
-        radial-gradient(600px 280px at 80% 15%, rgba(216,135,37,.22), transparent 65%),
-        #102a36;
-      color: #fff9ec;
-      padding: 34px;
-      box-shadow: 0 24px 80px rgba(16,42,54,.22);
-    }
-    .release-grid {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 28px;
-      align-items: center;
-    }
-    .release h2 {
-      font-size: clamp(30px, 3.6vw, 46px);
-      line-height: 1;
-      letter-spacing: -.05em;
-    }
-    .release p {
-      max-width: 620px;
-      margin-top: 12px;
-      color: #bfd2cc;
-    }
-    .platforms {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(110px, 1fr));
-      gap: 9px;
-      min-width: 260px;
-    }
-    .platforms span {
-      padding: 10px 12px;
-      border: 1px solid rgba(255,255,255,.13);
-      border-radius: 12px;
-      background: rgba(255,255,255,.06);
-      color: #e8f4ef;
-      font-size: 12px;
-      font-weight: 780;
+    @media (max-width: 470px) {
+      .brand span:last-child { display: none; }
+      .hero-actions .button { width: 100%; }
+      .mock-action span { display: none; }
+      .mock-table th:nth-child(3), .mock-table td:nth-child(3) { display: none; }
+      .trust-row { grid-template-columns: 1fr; }
+      .trust-item { border-right: 0; border-bottom: 1px solid var(--line); }
+      .trust-item:last-child { border-bottom: 0; }
+      .platforms { grid-template-columns: 1fr; }
     }
 
-    footer {
-      padding: 28px 0 48px;
-      color: var(--quiet);
-      font-size: 13px;
-    }
-    footer .wrap {
-      display: flex;
-      justify-content: space-between;
-      gap: 18px;
-      border-top: 1px solid var(--line);
-      padding-top: 22px;
-    }
-    footer a { color: var(--ink); font-weight: 720; }
-
-    @media (max-width: 980px) {
-      .hero-grid, .workflow, .release-grid { grid-template-columns: 1fr; }
-      .hero { padding-top: 48px; }
-      .app-grid { grid-template-columns: 136px 1fr; }
-      .inspector { display: none; }
-      .strip, .cards { grid-template-columns: repeat(2, 1fr); }
-      .section-head { align-items: start; flex-direction: column; }
-    }
-
-    @media (max-width: 680px) {
-      .wrap { width: min(100% - 28px, var(--max)); }
-      .nav-inner { height: auto; padding: 12px 0; flex-wrap: wrap; }
-      .nav-links { order: 3; width: 100%; overflow-x: auto; padding-bottom: 2px; }
-      .download { margin-left: auto; }
-      .app-grid { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-      .pathbar, .toolbar { flex-wrap: wrap; }
-      .prefix-input { flex-basis: 100%; }
-      .strip, .cards, .platforms { grid-template-columns: 1fr; }
-      .strip div { border-right: 0; border-bottom: 1px solid var(--line); }
-      .strip div:last-child { border-bottom: 0; }
-      .release { padding: 24px; }
-      footer .wrap { flex-direction: column; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
     }
   </style>
 </head>
+
 <body>
-  <nav class="nav">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <nav class="nav" aria-label="Primary navigation">
     <div class="wrap nav-inner">
-      <a class="brand" href="#">
-        <span class="brand-mark" aria-hidden="true">
+      <a class="brand" href="#top" aria-label="S3 Studio home">
+        <span class="brand-icon" aria-hidden="true">
           <svg viewBox="0 0 32 32" fill="none">
             <path d="M16 1.5 30.5 16 16 30.5 1.5 16 16 1.5Z" fill="#2d5e72"/>
-            <path d="M16 2v28M2 16h28" stroke="#f8f4e9" stroke-width="2.8"/>
+            <path d="M16 2v28M2 16h28" stroke="#fff2d2" stroke-width="2.8"/>
           </svg>
         </span>
         <span>S3 Studio</span>
       </a>
-      <div class="nav-links" aria-label="Primary navigation">
+
+      <div class="nav-links">
+        <a href="#product">Product</a>
         <a href="#workflow">Workflow</a>
-        <a href="#permissions">Permissions</a>
-        <a href="#release">Downloads</a>
+        <a href="#security">Security</a>
+        <a href="#faq">FAQ</a>
         <a href="https://github.com/Banegasn/s3-studio">GitHub</a>
       </div>
-      <a class="download" href="https://github.com/Banegasn/s3-studio/releases/latest">Download</a>
+
+      <a class="button primary" href="https://github.com/Banegasn/s3-studio/releases/latest">
+        Download
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+      </a>
     </div>
   </nav>
 
-  <main>
-    <header class="hero">
-      <div class="wrap hero-grid">
-        <div>
-          <div class="eyebrow">Desktop client for local AWS profiles</div>
-          <h1>S3 work without the console sprawl.</h1>
-          <p class="lede">
-            S3 Studio is a focused desktop workspace for bucket browsing, prefix navigation,
-            object transfers, ACL inspection, and CloudFront invalidations.
-          </p>
+  <main id="main">
+    <header class="hero" id="top">
+      <div class="wrap">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Source-available desktop client for AWS profiles</div>
+          <h1>Your S3 workspace.<br><span>Without the console sprawl.</span></h1>
+          <p class="lede">Browse buckets, move files, inspect permissions, edit objects, and invalidate CloudFront from one focused desktop workspace.</p>
           <div class="hero-actions">
-            <a class="download" href="https://github.com/Banegasn/s3-studio/releases/latest">Get the latest build</a>
-            <a class="secondary" href="https://github.com/Banegasn/s3-studio">View source</a>
+            <a class="button primary" href="https://github.com/Banegasn/s3-studio/releases/latest">
+              Get the latest build
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+            </a>
+            <a class="button" href="https://github.com/Banegasn/s3-studio">
+              View source on GitHub
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18 15 12 9 6"/></svg>
+            </a>
           </div>
-          <p class="fine-print">Open source. Uses your local AWS CLI credentials. No hosted backend.</p>
+          <p class="hero-note">Uses your local AWS CLI credentials · No hosted backend · Source available on GitHub</p>
         </div>
 
-        <div class="product-shell" aria-label="S3 Studio product interface preview">
-          <div class="app">
-            <div class="titlebar">
-              <span class="lights"></span><span class="lights"></span><span class="lights"></span>
-              <strong>S3 Studio</strong>
-              <div class="slot"><span>pre</span><span>eu-west-1</span></div>
+        <div class="product-stage" aria-label="S3 Studio application preview">
+          <div class="app-window">
+            <div class="app-titlebar">
+              <div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+              <div class="app-brand">
+                <span class="mini-logo" aria-hidden="true">
+                  <svg viewBox="0 0 32 32" fill="none"><path d="M16 2 30 16 16 30 2 16 16 2Z" fill="#2d5e72"/><path d="M16 3v26M3 16h26" stroke="#fff2d2" stroke-width="3"/></svg>
+                </span>
+                S3 Studio
+              </div>
+              <div class="app-context">
+                <div class="context-control"><small>Profile</small><span class="context-value">production</span></div>
+                <div class="context-control"><small>Region</small><span class="context-value">eu-west-1</span></div>
+                <span class="context-icon" aria-hidden="true">↻</span>
+                <span class="context-icon" aria-hidden="true">◐</span>
+                <span class="context-icon" aria-hidden="true">◧</span>
+              </div>
             </div>
-            <div class="app-grid">
-              <aside class="sidebar">
-                <div class="label">S3 <span class="count">41</span></div>
-                <div class="search">⌕ Filter buckets</div>
-                <div class="bucket-row">api-bi-pre</div>
-                <div class="bucket-row">app-channels-pre</div>
-                <div class="bucket-row active">client-dists-resources-pre</div>
-                <div class="bucket-row">int-sga-connector-pre</div>
-                <div class="bucket-row">ob-cloudflare-logs-pre</div>
+
+            <div class="app-workspace">
+              <aside class="mock-buckets">
+                <div class="mock-panel-title">Buckets <span class="mock-count">18</span></div>
+                <div class="mock-search">⌕ Filter buckets</div>
+                <div class="mock-bucket">analytics-archive</div>
+                <div class="mock-bucket">customer-uploads</div>
+                <div class="mock-bucket">data-export-production</div>
+                <div class="mock-bucket active">web-assets-production</div>
+                <div class="mock-bucket">media-processing</div>
+                <div class="mock-bucket">service-audit-logs</div>
+                <div class="mock-bucket">static-content</div>
               </aside>
 
-              <section class="browser" aria-label="Object browser mockup">
-                <div class="pathbar">
-                  <span class="crumb">client-dists-resources-pre</span>
-                  <span class="muted">›</span>
-                  <div class="prefix-input">channels-client/preticketing/</div>
+              <section class="mock-browser" aria-label="Object browser preview">
+                <div class="mock-toolbar">
+                  <div class="mock-path"><span>web-assets-production</span><b>›</b><span>site</span><b>›</b><span>config</span></div>
+                  <div class="mock-actions">
+                    <div class="mock-action">↑ <span>Files</span></div>
+                    <div class="mock-action">□ <span>Folder</span></div>
+                    <div class="mock-action">↓ <span>Download</span></div>
+                    <div class="mock-action danger">× <span>Delete</span></div>
+                    <div class="mock-action">↻</div>
+                  </div>
                 </div>
-                <div class="toolbar">
-                  <span class="tool green">Folder</span>
-                  <span class="tool">Upload</span>
-                  <span class="tool">Download</span>
-                  <span class="tool red">Delete</span>
-                </div>
-                <div class="table">
-                  <table>
-                    <thead>
-                      <tr><th>Name</th><th>Size</th><th>Modified</th><th>Storage</th></tr>
-                    </thead>
+                <div class="mock-filter-row"><div class="mock-search">⌕ Filter this folder</div><span>6 items</span></div>
+                <div class="mock-table-wrap">
+                  <table class="mock-table">
+                    <thead><tr><th>✓</th><th>Name</th><th>Size</th><th>Modified</th></tr></thead>
                     <tbody>
-                      <tr><td><span class="folder">□</span>athchannel</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
-                      <tr><td><span class="folder">□</span>athempleadossochannels</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
-                      <tr><td><span class="folder">□</span>b2b</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
-                      <tr class="selected"><td><span class="folder">□</span>preticketing</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td></tr>
+                      <tr><td>○</td><td><span class="file-name"><i>□</i>locales</span></td><td class="row-muted">—</td><td class="row-muted">—</td></tr>
+                      <tr><td>○</td><td><span class="file-name"><i>□</i>themes</span></td><td class="row-muted">—</td><td class="row-muted">—</td></tr>
+                      <tr class="selected"><td>●</td><td><span class="file-name code"><i>{ }</i>runtime.json</span></td><td>2.8 KB</td><td>Today, 09:42</td></tr>
+                      <tr><td>○</td><td><span class="file-name code"><i>{ }</i>routes.json</span></td><td>6.1 KB</td><td>Yesterday, 16:08</td></tr>
+                      <tr><td>○</td><td><span class="file-name"><i>◇</i>robots.txt</span></td><td>412 B</td><td>Jul 8, 11:31</td></tr>
+                      <tr><td>○</td><td><span class="file-name"><i>◇</i>manifest.webmanifest</span></td><td>1.2 KB</td><td>Jul 4, 14:02</td></tr>
                     </tbody>
                   </table>
                 </div>
               </section>
 
-              <aside class="inspector">
-                <div class="preview-min">
-                  S3 prefix
-                  <small>7 objects below</small>
-                </div>
-                <div class="stat-grid">
-                  <div class="stat"><span>Bucket</span><strong>client-dists…</strong></div>
-                  <div class="stat"><span>Objects</span><strong>7</strong></div>
-                  <div class="stat"><span>Prefix</span><strong>channels-client/…</strong></div>
-                  <div class="stat"><span>Type</span><strong>Folder</strong></div>
-                </div>
-                <div class="access">
-                  <div class="access-head">
-                    <span>Access settings</span>
-                    <span>Load ACLs</span>
+              <aside class="mock-inspector">
+                <div class="inspector-kicker">Object</div>
+                <div class="inspector-title">runtime.json</div>
+                <div class="code-card">
+                  <div class="code-toolbar"><span>JSON</span><span class="code-tool">↶</span><span class="code-tool save">✓</span><span class="code-tool">↗</span></div>
+                  <div class="code-area" aria-hidden="true">
+                    <div class="code-line"><span class="line-num">1</span><span>{</span></div>
+                    <div class="code-line"><span class="line-num">2</span><span>&nbsp;&nbsp;<span class="syntax-key">"apiUrl"</span>: <span class="syntax-string">"/api/v2"</span>,</span></div>
+                    <div class="code-line"><span class="line-num">3</span><span>&nbsp;&nbsp;<span class="syntax-key">"region"</span>: <span class="syntax-string">"eu-west-1"</span>,</span></div>
+                    <div class="code-line"><span class="line-num">4</span><span>&nbsp;&nbsp;<span class="syntax-key">"features"</span>: {</span></div>
+                    <div class="code-line"><span class="line-num">5</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="syntax-key">"checkout"</span>: <span class="syntax-bool">true</span>,</span></div>
+                    <div class="code-line"><span class="line-num">6</span><span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="syntax-key">"search"</span>: <span class="syntax-bool">true</span></span></div>
+                    <div class="code-line"><span class="line-num">7</span><span>&nbsp;&nbsp;}</span></div>
+                    <div class="code-line"><span class="line-num">8</span><span>}</span></div>
                   </div>
-                  <div class="acl-row"><b>Read</b><span>Everyone</span></div>
-                  <div class="acl-row"><b>Full control</b><span>Canonical user</span></div>
+                </div>
+                <div class="detail-facts">
+                  <div class="detail-fact"><span>Size</span><strong>2.8 KB</strong></div>
+                  <div class="detail-fact"><span>Type</span><strong>application/json</strong></div>
+                  <div class="detail-fact"><span>Storage</span><strong>Standard</strong></div>
+                  <div class="detail-fact"><span>ETag</span><strong>7d94…0f2a</strong></div>
+                </div>
+                <div class="permission-card">
+                  <div class="permission-head">♢ Permissions <span>1</span></div>
+                  <div class="permission-copy">ACL details stay available without taking over the object workflow.</div>
                 </div>
               </aside>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="wrap strip" aria-label="Release coverage">
-        <div><strong>S3</strong><span>bucket and prefix browser</span></div>
-        <div><strong>ACL</strong><span>permissions when needed</span></div>
-        <div><strong>CDN</strong><span>CloudFront invalidations</span></div>
-        <div><strong>3 OS</strong><span>macOS, Windows, Linux</span></div>
+        <div class="trust-row" aria-label="Product principles">
+          <div class="trust-item"><strong>Direct to AWS</strong><span>No proxy service in between</span></div>
+          <div class="trust-item"><strong>Local profiles</strong><span>Works with existing CLI config</span></div>
+          <div class="trust-item"><strong>Native desktop</strong><span>Tauri app for daily operations</span></div>
+          <div class="trust-item"><strong>Source available</strong><span>Inspect, build, and contribute</span></div>
+        </div>
       </div>
     </header>
 
-    <section id="workflow">
+    <section class="section" id="product">
       <div class="wrap">
-        <div class="section-head">
-          <h2>Built around the operations you repeat every day.</h2>
-          <p>No service dashboard maze. Pick a profile, choose a region, jump to a prefix, and work from a file-browser layout.</p>
+        <div class="section-label">One workspace, the whole object lifecycle</div>
+        <div class="section-heading">
+          <h2>Built around the work, not the AWS service map.</h2>
+          <p>S3 Studio keeps navigation, content, context, and edge operations together so routine object work takes fewer tabs and fewer context switches.</p>
         </div>
-        <div class="cards">
-          <article class="card">
-            <span class="num">01</span>
-            <h3>Navigate by bucket, folder, or typed prefix.</h3>
-            <p>Use normal browsing for discovery, then paste exact S3 prefixes when you already know where you need to be.</p>
+
+        <div class="feature-grid">
+          <article class="feature-card large highlight">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/><path d="M3 12h12"/></svg>
+            </div>
+            <h3>Navigate the way S3 actually works.</h3>
+            <p>Browse visually when exploring, click any breadcrumb segment to jump back, or paste an exact prefix when you already know the destination.</p>
+            <div class="path-visual">s3:// <span>web-assets-production</span> / <span>site</span> / <span>config</span></div>
+            <ul class="feature-list"><li>Profiles and regions</li><li>Clickable breadcrumbs</li><li>Editable prefixes</li><li>Fast filtering</li></ul>
           </article>
-          <article class="card">
-            <span class="num">02</span>
-            <h3>Move objects without losing context.</h3>
-            <p>Upload, download, delete, and refresh from the same workspace while the inspector keeps the selected target visible.</p>
+
+          <article class="feature-card medium warm">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+            </div>
+            <h3>Transfer without losing context.</h3>
+            <p>Upload files or folders, drag from Finder or Explorer, download selections, and delete prefixes with visible progress.</p>
+            <div class="transfer-visual"><div class="transfer-box">Local folder</div><span class="transfer-arrow">→</span><div class="transfer-box">Current prefix</div></div>
           </article>
-          <article class="card">
-            <span class="num">03</span>
-            <h3>Invalidate CloudFront from the same place.</h3>
-            <p>Create invalidations next to the S3 content they affect, using local AWS credentials and your selected profile.</p>
+
+          <article class="feature-card third">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5"/></svg>
+            </div>
+            <h3>Preview and edit in place.</h3>
+            <p>Inspect images and PDFs, open text and JSON in Monaco, then save directly back to the selected object.</p>
+            <ul class="feature-list"><li>Monaco editor</li><li>Fullscreen mode</li><li>Metadata</li></ul>
+          </article>
+
+          <article class="feature-card third">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>
+            </div>
+            <h3>Understand access without ACL noise.</h3>
+            <p>Bucket ownership and policy controls lead. Legacy object ACL grants remain available on demand when they genuinely matter.</p>
+            <ul class="feature-list"><li>Public access blocks</li><li>Bucket policy</li><li>Object ACLs</li></ul>
+          </article>
+
+          <article class="feature-card third">
+            <div class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a14 14 0 0 1 0 18M3 12h18"/></svg>
+            </div>
+            <h3>Push changes to the edge.</h3>
+            <p>Find linked CloudFront distributions and create object, folder wildcard, or multi-selection invalidations beside the content.</p>
+            <ul class="feature-list"><li>Origin-path aware</li><li>Wildcard presets</li><li>Multi-select</li></ul>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="permissions">
-      <div class="wrap workflow">
-        <div class="terminal" aria-label="Local-first architecture note">
-<pre><span class="comment"># local-first by design</span>
-aws profiles → S3 Studio
-S3 buckets   → object browser
-prefixes     → typed navigation
-ACLs         → loaded on demand
-CloudFront   → invalidation panel
-
-<span class="accent">No hosted sync. No account import.</span></pre>
+    <section class="section" id="workflow">
+      <div class="wrap">
+        <div class="section-label">A faster path from object to edge</div>
+        <div class="section-heading">
+          <h2>Keep the operational chain in one place.</h2>
+          <p>The selected bucket, prefix, object, metadata, permissions, and linked distributions remain part of the same working context.</p>
         </div>
-        <div class="panel-list">
-          <article>
-            <h3>Permissions stay out of the way until they matter.</h3>
-            <p>ACL work is heavy and easy to get wrong. S3 Studio keeps it scoped to the selected object or prefix and treats it as an explicit access-settings task.</p>
-          </article>
-          <article>
-            <h3>Folders are treated like prefixes, not fake files.</h3>
-            <p>The interface focuses on the prefix path, child object count, and relevant actions instead of wasting height on previews that cannot render anything useful.</p>
-          </article>
-          <article>
-            <h3>Native desktop packaging, open source internals.</h3>
-            <p>Built with Tauri, Rust, React, and TypeScript. The app talks directly to AWS using the same local profile setup you already use in the CLI.</p>
+
+        <div class="workflow-grid">
+          <div class="workflow-copy">
+            <article class="workflow-step">
+              <div class="step-top"><span class="step-number">01</span><h3>Choose the AWS context</h3></div>
+              <p>Select any discovered local profile and region without importing credentials into another service.</p>
+            </article>
+            <article class="workflow-step">
+              <div class="step-top"><span class="step-number">02</span><h3>Work with the content</h3></div>
+              <p>Navigate, filter, multi-select, transfer, preview, edit, or remove objects from one file-browser workflow.</p>
+            </article>
+            <article class="workflow-step">
+              <div class="step-top"><span class="step-number">03</span><h3>Update downstream caches</h3></div>
+              <p>Resolve matching CloudFront origins and queue the right invalidation paths without reconstructing them by hand.</p>
+            </article>
+          </div>
+
+          <article class="edge-card">
+            <small>CloudFront invalidation</small>
+            <h3>Changed the object?<br>Refresh the edge beside it.</h3>
+            <p>S3 Studio accounts for origin paths and gives you object and folder presets before anything is queued.</p>
+            <div class="invalidation">
+              <div class="invalidation-head">Linked distributions</div>
+              <div class="invalidation-row"><span class="check">✓</span><span>E2EXAMPLE · /site/config/*</span><span class="queue">Queue</span></div>
+            </div>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="release">
-      <div class="wrap release">
-        <div class="release-grid">
+    <section class="section" id="security">
+      <div class="wrap">
+        <div class="section-label">Local-first by design</div>
+        <div class="section-heading">
+          <h2>Your AWS setup stays your AWS setup.</h2>
+          <p>S3 Studio reads the same profile configuration used by the AWS CLI and talks directly to AWS. There is no account migration or hosted sync layer.</p>
+        </div>
+
+        <div class="security-panel">
+          <div class="architecture">
+<pre><span class="comment"># your existing local setup</span>
+~/.aws/config
+~/.aws/credentials
+AWS_PROFILE
+        │
+        ▼
+<span class="accent">S3 Studio desktop app</span>
+        │
+        ├── S3
+        └── CloudFront</pre>
+          </div>
+          <div class="security-copy">
+            <article class="security-item"><span class="security-check">✓</span><div><h3>No hosted backend</h3><p>Operations run from the desktop app directly against AWS APIs.</p></div></article>
+            <article class="security-item"><span class="security-check">✓</span><div><h3>Your IAM boundaries still apply</h3><p>The selected profile can only perform the actions its AWS permissions allow.</p></div></article>
+            <article class="security-item"><span class="security-check">✓</span><div><h3>Open implementation</h3><p>Review the Rust, React, and TypeScript source or build the application yourself.</p></div></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq">
+      <div class="wrap">
+        <div class="section-label">Questions, answered</div>
+        <div class="section-heading">
+          <h2>What to know before you install.</h2>
+          <p>The app is intentionally focused: a desktop operations workspace built on top of credentials and permissions you already manage.</p>
+        </div>
+        <div class="faq">
+          <details><summary>How does S3 Studio authenticate?</summary><p>It discovers AWS CLI profiles from the standard config and credentials files, plus the common AWS environment variables. It does not ask you to upload credentials.</p></details>
+          <details><summary>Does S3 really have folders?</summary><p>No. Folder rows are S3 prefixes. S3 Studio represents them as folders for navigation while keeping prefix behavior explicit in the inspector and bulk operations.</p></details>
+          <details><summary>What platforms are available?</summary><p>Tagged releases are built for macOS Apple Silicon and Intel, Windows x64, and Linux x64 and ARM64. Check the latest release for the exact assets.</p></details>
+          <details><summary>How are CloudFront links found?</summary><p>The app matches CloudFront origins to the selected S3 bucket, accounts for origin paths, and then suggests viewer-path invalidations for the selected content.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <section class="download-section" id="download">
+      <div class="wrap download-card">
+        <div class="download-grid">
           <div>
-            <h2>Download a build for your machine.</h2>
-            <p>Each tagged release is built by GitHub Actions for desktop platforms. Linux ships as deb/rpm packages to avoid flaky AppImage bootstrap downloads.</p>
-            <div class="hero-actions">
-              <a class="download" href="https://github.com/Banegasn/s3-studio/releases/latest">Open latest release</a>
-              <a class="secondary" href="https://github.com/Banegasn/s3-studio/blob/main/release.sh">Release script</a>
+            <h2>Put S3 work in a workspace that stays focused.</h2>
+            <p>Download the latest release, choose an existing AWS profile, and start browsing. No hosted account or migration step required.</p>
+            <div class="hero-actions left">
+              <a class="button primary" href="https://github.com/Banegasn/s3-studio/releases/latest">Open latest release</a>
+              <a class="button" href="https://github.com/Banegasn/s3-studio#development">Build from source</a>
             </div>
           </div>
-          <div class="platforms" aria-label="Supported platforms">
-            <span>macOS Apple Silicon</span>
-            <span>macOS Intel</span>
-            <span>Windows x64</span>
-            <span>Linux x64</span>
-            <span>Linux ARM64</span>
+          <div class="platforms" aria-label="Release platforms">
+            <span>macOS · Apple Silicon</span><span>macOS · Intel</span><span>Windows · x64</span><span>Linux · x64</span><span>Linux · ARM64</span>
           </div>
         </div>
       </div>
@@ -897,9 +799,12 @@ CloudFront   → invalidation panel
   </main>
 
   <footer>
-    <div class="wrap">
-      <span>© 2026 S3 Studio. Built for operators who live in buckets.</span>
-      <span><a href="https://github.com/Banegasn/s3-studio">Banegasn/s3-studio</a></span>
+    <div class="wrap footer-inner">
+      <a class="brand" href="#top"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 1.5 30.5 16 16 30.5 1.5 16 16 1.5Z" fill="#2d5e72"/><path d="M16 2v28M2 16h28" stroke="#fff2d2" stroke-width="2.8"/></svg></span><span>S3 Studio</span></a>
+      <span>© 2026</span>
+      <a href="https://github.com/Banegasn/s3-studio">GitHub</a>
+      <a href="https://github.com/Banegasn/s3-studio/releases/latest">Releases</a>
+      <a href="https://github.com/Banegasn/s3-studio/issues">Issues</a>
     </div>
   </footer>
 </body>
