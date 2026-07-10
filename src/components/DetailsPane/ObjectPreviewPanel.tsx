@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import Editor from '@monaco-editor/react'
-import { Archive, Image, Loader2, Maximize2, Save, X } from 'lucide-react'
+import { Archive, Image, Loader2, Maximize2, RotateCcw, Save, X } from 'lucide-react'
 import type { ObjectPreview, S3Entry } from '../../types'
 import { isImagePreview, isPdfPreview } from '../../utils/format'
 import { EmptyState, IconButton, Button } from '../ui'
@@ -85,33 +85,65 @@ function TextEditorView({
   onSave: (text: string) => void
 }) {
   const language = editorLanguage(selectedObject.key, preview.content_type)
+  const canSave = !disabled && dirty && !preview.truncated
+
+  function discardChanges() {
+    setDraft(preview.text || '')
+  }
+
+  function handleEditorKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault()
+      if (canSave) onSave(draft)
+      return
+    }
+    if (event.key === 'Escape' && isFullscreen) {
+      event.preventDefault()
+      setIsFullscreen(false)
+    }
+  }
 
   return (
-    <div className="object-editor">
+    <div className="object-editor" onKeyDown={handleEditorKeyDown}>
       <div className="object-editor-toolbar">
-        <span>{language}</span>
-        {preview.truncated ? <strong>Preview truncated</strong> : null}
-        <IconButton compact variant="primary" onClick={() => onSave(draft)} disabled={disabled || !dirty || preview.truncated}>
-          <Save size={14} />
-        </IconButton>
-        <IconButton compact onClick={() => setIsFullscreen(true)} title="Open fullscreen editor">
-          <Maximize2 size={14} />
-        </IconButton>
+        <div className="editor-toolbar-meta">
+          <span>{language}</span>
+          {preview.truncated ? <strong>Preview truncated</strong> : null}
+        </div>
+        <div className="editor-toolbar-actions">
+          <IconButton compact onClick={discardChanges} disabled={!dirty} title="Discard changes">
+            <RotateCcw size={14} />
+          </IconButton>
+          <IconButton compact variant="primary" onClick={() => onSave(draft)} disabled={!canSave} title="Save changes (⌘/Ctrl+S)">
+            <Save size={14} />
+          </IconButton>
+          <IconButton compact onClick={() => setIsFullscreen(true)} title="Open fullscreen editor">
+            <Maximize2 size={14} />
+          </IconButton>
+        </div>
       </div>
       <CodeEditor keyValue={lastPreviewKey} value={draft} language={language} theme={theme} onChange={setDraft} />
       {isFullscreen ? (
         <div className="editor-fullscreen-backdrop">
           <section className="editor-fullscreen" role="dialog" aria-modal="true" aria-label="Fullscreen editor">
             <div className="object-editor-toolbar">
-              <span>{selectedObject.key}</span>
-              {preview.truncated ? <strong>Preview truncated</strong> : null}
-              <Button variant="primary" onClick={() => onSave(draft)} disabled={disabled || !dirty || preview.truncated}>
-                <Save size={14} />
-                Save
-              </Button>
-              <IconButton compact onClick={() => setIsFullscreen(false)} title="Close fullscreen editor">
-                <X size={14} />
-              </IconButton>
+              <div className="editor-toolbar-meta">
+                <span>{selectedObject.key}</span>
+                {preview.truncated ? <strong>Preview truncated</strong> : null}
+              </div>
+              <div className="editor-toolbar-actions">
+                <Button onClick={discardChanges} disabled={!dirty} title="Discard changes">
+                  <RotateCcw size={14} />
+                  Discard
+                </Button>
+                <Button variant="primary" onClick={() => onSave(draft)} disabled={!canSave} title="Save changes (⌘/Ctrl+S)">
+                  <Save size={14} />
+                  Save
+                </Button>
+                <IconButton compact onClick={() => setIsFullscreen(false)} title="Close fullscreen editor">
+                  <X size={14} />
+                </IconButton>
+              </div>
             </div>
             <CodeEditor keyValue={`fullscreen:${lastPreviewKey}`} value={draft} language={language} theme={theme} onChange={setDraft} />
           </section>
@@ -143,12 +175,22 @@ function CodeEditor({
       loading={<EmptyState message="Loading editor" compact />}
       options={{
         minimap: { enabled: false },
-        fontSize: 12,
-        lineHeight: 18,
+        fontSize: 13,
+        lineHeight: 20,
+        padding: { top: 10, bottom: 10 },
         scrollBeyondLastLine: false,
         wordWrap: 'on',
         automaticLayout: true,
         tabSize: 2,
+        folding: true,
+        smoothScrolling: true,
+        mouseWheelZoom: true,
+        cursorSmoothCaretAnimation: 'on',
+        bracketPairColorization: { enabled: true },
+        guides: { indentation: true, bracketPairs: true },
+        renderWhitespace: 'selection',
+        stickyScroll: { enabled: false },
+        ariaLabel: 'Object text editor',
       }}
       onChange={(nextValue) => onChange(nextValue || '')}
     />

@@ -4,6 +4,7 @@
   min-height: auto;
   display: grid;
   gap: var(--space-8);
+  align-content: start;
   container-type: inline-size;
 }
 
@@ -199,7 +200,7 @@
 .acl-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.35fr) 40px;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 0.9fr) minmax(0, 1.35fr) var(--space-36);
   gap: var(--space-4);
   align-items: center;
   padding: var(--space-4);
@@ -242,6 +243,30 @@
   font-size: var(--font-size-sm);
 }
 
+@container (max-width: 300px) {
+  .acl-table-card {
+    padding: var(--space-5);
+  }
+
+  .acl-row {
+    grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.85fr) minmax(0, 1.2fr) 28px;
+    gap: var(--space-1);
+    padding: var(--space-1);
+  }
+
+  .acl-row select,
+  .acl-row input {
+    height: 28px;
+    padding-inline: var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+
+  .acl-row .icon-btn {
+    width: 28px;
+    height: 28px;
+  }
+}
+
 .permission-loading {
   display: flex;
   align-items: center;
@@ -276,26 +301,6 @@
 .sample-row strong {
   font-weight: var(--font-weight-bold);
   color: var(--color-accent);
-}
-
-@container (max-width: 360px) {
-  .acl-row {
-    grid-template-columns: 1fr var(--space-36);
-  }
-
-  .acl-row.acl-head {
-    display: none;
-  }
-
-  .acl-row select,
-  .acl-row input {
-    grid-column: 1 / -1;
-  }
-
-  .acl-row .icon-btn {
-    grid-column: 2;
-    justify-self: end;
-  }
 }
 
 .sample-row span {

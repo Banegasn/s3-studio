@@ -12,13 +12,13 @@
 
 .workspace-scroll {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .workspace {
   height: 100%;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
   display: grid;
   align-items: stretch;
 }
@@ -26,6 +26,8 @@
 .pane-slot {
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
 }
 
 .pane-splitter {

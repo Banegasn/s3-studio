@@ -10,7 +10,15 @@
 }
 
 .pane-heading h2 {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--font-size-xl);
   line-height: 1.2;
+}
+
+.pane-heading > div {
+  min-width: 0;
 }

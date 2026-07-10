@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "S3 Studio",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.banegasn.s3-studio",
   "build": {
     "beforeDevCommand": "pnpm run dev",
@@ -18,6 +18,8 @@
         "height": 920,
         "minWidth": 680,
         "minHeight": 480,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "dragDropEnabled": true
       }
     ],

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
-import { ChevronRight, Download, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Check, ChevronRight, Copy, Download, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
 import { Button, IconButton, SearchBox, EmptyState } from './ui'
@@ -65,8 +65,10 @@ export function BrowserPane({
   const hasSelectedEntry = selectedEntries.length > 0
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
+  const copyResetRef = useRef<number | undefined>(undefined)
   const [prefixDraft, setPrefixDraft] = useState(prefix)
   const [isEditingPrefix, setIsEditingPrefix] = useState(false)
+  const [prefixCopied, setPrefixCopied] = useState(false)
   const selectedFilteredCount = filteredObjects.filter((entry) => selectedIds.has(entryId(entry))).length
   const allFilteredSelected = filteredObjects.length > 0 && selectedFilteredCount === filteredObjects.length
   const someFilteredSelected = selectedFilteredCount > 0 && !allFilteredSelected
@@ -85,15 +87,35 @@ export function BrowserPane({
     setPrefixDraft(prefix)
   }, [prefix])
 
+  useEffect(() => () => window.clearTimeout(copyResetRef.current), [])
+
   function submitPrefix(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsEditingPrefix(false)
     onSetPrefix(prefixDraft)
   }
 
-  function closePrefixEditor() {
+  function cancelPrefixEditor() {
+    setPrefixDraft(prefix)
     setIsEditingPrefix(false)
-    onSetPrefix(prefixDraft)
+  }
+
+  async function copyPrefix() {
+    try {
+      await navigator.clipboard.writeText(prefix)
+    } catch {
+      const copyInput = document.createElement('textarea')
+      copyInput.value = prefix
+      copyInput.style.position = 'fixed'
+      copyInput.style.opacity = '0'
+      document.body.append(copyInput)
+      copyInput.select()
+      document.execCommand('copy')
+      copyInput.remove()
+    }
+    setPrefixCopied(true)
+    window.clearTimeout(copyResetRef.current)
+    copyResetRef.current = window.setTimeout(() => setPrefixCopied(false), 1400)
   }
 
   function toggleAllVisible() {
@@ -178,31 +200,50 @@ export function BrowserPane({
               autoFocus
               value={prefixDraft}
               onChange={(event) => setPrefixDraft(event.target.value)}
-              onBlur={closePrefixEditor}
+              onFocus={(event) => event.currentTarget.select()}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') cancelPrefixEditor()
+              }}
               disabled={!bucket}
               placeholder="/"
               aria-label="Current prefix"
             />
+            <IconButton compact type="submit" title="Open prefix" disabled={!bucket}>
+              <ChevronRight size={14} />
+            </IconButton>
           </form>
         ) : (
-          <button
-            type="button"
-            className="breadcrumbs breadcrumb-editor-trigger"
-            onClick={() => {
-              if (bucket) setIsEditingPrefix(true)
-            }}
-            disabled={!bucket}
-            title="Click to edit prefix"
-          >
-            <span>{bucket || 'No bucket'}</span>
-            {breadcrumbs.map((crumb) => (
-              <span key={crumb.prefix} className="crumb">
-                <ChevronRight size={15} />
-                <span>{crumb.label}</span>
-              </span>
-            ))}
-            <Pencil className="breadcrumb-edit-icon" size={14} />
-          </button>
+          <div className="breadcrumbs breadcrumb-control">
+            <nav className="breadcrumb-trail" aria-label="Current S3 prefix">
+              <button type="button" onClick={() => onSetPrefix('')} disabled={!bucket} title="Open bucket root">
+                {bucket || 'No bucket'}
+              </button>
+              {breadcrumbs.map((crumb) => (
+                <span key={crumb.prefix} className="crumb">
+                  <ChevronRight size={15} />
+                  <button type="button" onClick={() => onSetPrefix(crumb.prefix)} title={`Open ${crumb.prefix}`}>
+                    {crumb.label}
+                  </button>
+                </span>
+              ))}
+            </nav>
+            <div className="breadcrumb-actions">
+              <IconButton compact onClick={() => void copyPrefix()} disabled={!bucket} title="Copy current prefix">
+                {prefixCopied ? <Check size={14} /> : <Copy size={14} />}
+              </IconButton>
+              <IconButton
+                compact
+                onClick={() => {
+                  setPrefixDraft(prefix)
+                  setIsEditingPrefix(true)
+                }}
+                disabled={!bucket}
+                title="Edit current prefix"
+              >
+                <Pencil size={14} />
+              </IconButton>
+            </div>
+          </div>
         )}
         <div className="toolbar-actions">
           <Button onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>

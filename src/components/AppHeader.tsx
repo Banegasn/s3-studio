@@ -1,5 +1,6 @@
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, MouseEvent } from 'react'
 import { Moon, PanelLeft, PanelRight, RefreshCw, Sun } from 'lucide-react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import appIcon from '../assets/app-icon.png'
 import type { AwsProfile } from '../types'
 import { DEFAULT_REGION } from '../utils/format'
@@ -35,8 +36,15 @@ export function AppHeader({
   onToggleDetailsPane,
   onToggleTheme,
 }: Props) {
+  function startWindowDrag(event: MouseEvent<HTMLElement>) {
+    if (event.button !== 0 || !('__TAURI_INTERNALS__' in window)) return
+    const target = event.target as HTMLElement
+    if (target.closest('button, input, select, textarea, option')) return
+    void getCurrentWindow().startDragging()
+  }
+
   return (
-    <header className="app-header">
+    <header className="app-header" onMouseDown={startWindowDrag}>
       <div className="brand-block">
         <div className="brand-mark">
           <img src={appIcon} alt="" />

@@ -57,7 +57,8 @@ export function PermissionsPanel({
   const [draftGrants, setDraftGrants] = useState<PermissionGrant[]>(grants)
   const publicBlockCount = publicAccessBlock ? Object.values(publicAccessBlock).filter(Boolean).length : 0
   const hasMoreAwsSettings = kind === 'bucket' || kind === 'folder' || Boolean(sampledObjects && sampledObjects.length > 0)
-  const showPrimaryAclTable = kind !== 'folder'
+  const bucketAclsDisabled = kind === 'bucket' && Boolean(objectOwnership?.includes('BucketOwnerEnforced'))
+  const showPrimaryAclTable = kind !== 'folder' && !bucketAclsDisabled
 
   useEffect(() => {
     setDraftGrants(grants)
@@ -89,6 +90,12 @@ export function PermissionsPanel({
       {kind === 'folder' && !permissionsLoaded ? (
         <div className="permission-note">
           Open more access settings to load object ACLs for this prefix.
+        </div>
+      ) : null}
+
+      {bucketAclsDisabled ? (
+        <div className="permission-note">
+          ACLs are disabled by Bucket owner enforced. IAM and bucket policies control access to this bucket.
         </div>
       ) : null}
 

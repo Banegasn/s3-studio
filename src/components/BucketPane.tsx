@@ -23,7 +23,6 @@ export function BucketPane({
   return (
     <aside className="bucket-pane">
       <PanelHeading
-        eyebrow="S3"
         title="Buckets"
         action={<Badge>{buckets.length}</Badge>}
       />

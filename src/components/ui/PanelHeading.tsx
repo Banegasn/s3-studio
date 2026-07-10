@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import './PanelHeading.css'
 
 type Props = {
-  eyebrow: string
+  eyebrow?: string
   title: string
   action?: ReactNode
 }
@@ -11,7 +11,7 @@ export function PanelHeading({ eyebrow, title, action }: Props) {
   return (
     <div className="pane-heading">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h2>{title}</h2>
       </div>
       {action}

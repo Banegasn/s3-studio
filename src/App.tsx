@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import './App.css'
 import { AppHeader } from './components/AppHeader'
@@ -69,9 +70,9 @@ const DETAILS_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:details-pane-collapsed'
 const THEME_KEY = 's3-cloudfront-studio:theme'
 const DEFAULT_BUCKET_PANE_WIDTH = 280
 const DEFAULT_DETAILS_PANE_WIDTH = 390
-const MIN_BUCKET_PANE_WIDTH = 220
-const MIN_DETAILS_PANE_WIDTH = 300
-const MIN_BROWSER_PANE_WIDTH = 520
+const MIN_BUCKET_PANE_WIDTH = 160
+const MIN_DETAILS_PANE_WIDTH = 240
+const MIN_BROWSER_PANE_WIDTH = 260
 const DELETE_PROGRESS_EVENT = 's3-delete-progress'
 
 type ResizePane = 'bucket' | 'details'
@@ -130,6 +131,27 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
 }
 
+function fitPaneWidths(bucketWidth: number, detailsWidth: number, availableWidth: number) {
+  const desiredTotal = bucketWidth + detailsWidth
+  if (desiredTotal <= availableWidth) return [bucketWidth, detailsWidth] as const
+
+  const bucketMinimum = bucketWidth > 0 ? MIN_BUCKET_PANE_WIDTH : 0
+  const detailsMinimum = detailsWidth > 0 ? MIN_DETAILS_PANE_WIDTH : 0
+  const bucketCapacity = Math.max(0, bucketWidth - bucketMinimum)
+  const detailsCapacity = Math.max(0, detailsWidth - detailsMinimum)
+  const totalCapacity = bucketCapacity + detailsCapacity
+  const excess = desiredTotal - availableWidth
+
+  if (excess <= totalCapacity && totalCapacity > 0) {
+    return [
+      bucketWidth - (excess * bucketCapacity) / totalCapacity,
+      detailsWidth - (excess * detailsCapacity) / totalCapacity,
+    ] as const
+  }
+
+  return [bucketMinimum, detailsMinimum] as const
+}
+
 function normalizePrefixInput(value: string) {
   const clean = value.trim().replace(/^\/+/, '')
   if (!clean) return ''
@@ -148,6 +170,7 @@ function App() {
   const [buckets, setBuckets] = useState<S3Bucket[]>([])
   const [bucketFilter, setBucketFilter] = useState('')
   const [selectedBucket, setSelectedBucket] = useState('')
+  const selectedBucketRef = useRef('')
   const [prefix, setPrefix] = useState('')
   const [objects, setObjects] = useState<S3Entry[]>([])
   const [objectFilter, setObjectFilter] = useState('')
@@ -178,7 +201,9 @@ function App() {
   const [isDetailsPaneCollapsed, setIsDetailsPaneCollapsed] = useState(() => readStorageBoolean(DETAILS_PANE_COLLAPSED_KEY, false))
   const [theme, setTheme] = useState<ThemeMode>(() => readStorageTheme())
   const [activeResize, setActiveResize] = useState<ResizePane | undefined>()
+  const [workspaceWidth, setWorkspaceWidth] = useState(() => (typeof window === 'undefined' ? 1440 : window.innerWidth))
   const detailRequestId = useRef(0)
+  const objectRequestId = useRef(0)
   const activeDeleteProgressId = useRef<string | undefined>(undefined)
   const { toasts, pushToast, dismissToast } = useToasts()
 
@@ -204,17 +229,21 @@ function App() {
     return objects.filter((entry) => entry.name.toLowerCase().includes(query) || entry.key.toLowerCase().includes(query))
   }, [objectFilter, objects])
 
-  const visibleBucketPaneWidth = isBucketPaneCollapsed ? 0 : bucketPaneWidth
-  const visibleDetailsPaneWidth = isDetailsPaneCollapsed ? 0 : detailsPaneWidth
   const leftSplitterWidth = isBucketPaneCollapsed ? 0 : 10
   const rightSplitterWidth = isDetailsPaneCollapsed ? 0 : 10
-  const workspaceMinWidth = visibleBucketPaneWidth + leftSplitterWidth + MIN_BROWSER_PANE_WIDTH + rightSplitterWidth + visibleDetailsPaneWidth
+  const desiredBucketPaneWidth = isBucketPaneCollapsed ? 0 : bucketPaneWidth
+  const desiredDetailsPaneWidth = isDetailsPaneCollapsed ? 0 : detailsPaneWidth
+  const availablePaneWidth = Math.max(0, workspaceWidth - leftSplitterWidth - rightSplitterWidth - MIN_BROWSER_PANE_WIDTH)
+  const [visibleBucketPaneWidth, visibleDetailsPaneWidth] = fitPaneWidths(
+    desiredBucketPaneWidth,
+    desiredDetailsPaneWidth,
+    availablePaneWidth,
+  )
   const workspaceStyle = useMemo(
     () => ({
       gridTemplateColumns: `${visibleBucketPaneWidth}px ${leftSplitterWidth}px minmax(${MIN_BROWSER_PANE_WIDTH}px, 1fr) ${rightSplitterWidth}px ${visibleDetailsPaneWidth}px`,
-      minWidth: `${workspaceMinWidth}px`,
     }),
-    [leftSplitterWidth, rightSplitterWidth, visibleBucketPaneWidth, visibleDetailsPaneWidth, workspaceMinWidth],
+    [leftSplitterWidth, rightSplitterWidth, visibleBucketPaneWidth, visibleDetailsPaneWidth],
   )
 
   const clearObjectDetails = useCallback(() => {
@@ -310,14 +339,18 @@ function App() {
       setBuckets(result)
       const savedBuckets = readStorageMap(LAST_BUCKETS_KEY)
       const savedBucket = savedBuckets[awsContext.profile]
-      const currentBucketIsValid = result.some((bucket) => bucket.name === selectedBucket)
+      const currentBucket = selectedBucketRef.current
+      const currentBucketIsValid = result.some((bucket) => bucket.name === currentBucket)
       const savedBucketIsValid = result.some((bucket) => bucket.name === savedBucket)
-      const nextBucket = currentBucketIsValid ? selectedBucket : savedBucketIsValid ? savedBucket || '' : result[0]?.name || ''
+      const nextBucket = currentBucketIsValid ? currentBucket : savedBucketIsValid ? savedBucket || '' : result[0]?.name || ''
+      const bucketChanged = nextBucket !== currentBucket
+      selectedBucketRef.current = nextBucket
       setSelectedBucket(nextBucket)
-      if (nextBucket) {
+      if (nextBucket && bucketChanged) {
         restoreBucketWorkspace(awsContext.profile, nextBucket)
       }
       if (result.length === 0) {
+        selectedBucketRef.current = ''
         setSelectedBucket('')
         setPrefix('')
         setObjectFilter('')
@@ -330,11 +363,13 @@ function App() {
     } finally {
       setBusy(undefined)
     }
-  }, [awsContext, clearBucketDetails, clearSelection, pushToast, restoreBucketWorkspace, selectedBucket])
+  }, [awsContext, clearBucketDetails, clearSelection, pushToast, restoreBucketWorkspace])
 
   const fetchObjectPage = useCallback(
     async (append: boolean, continuationToken?: string) => {
       if (!selectedBucket) return
+      const requestId = objectRequestId.current + 1
+      objectRequestId.current = requestId
       setLoadingObjects(true)
       try {
         const result = await listObjects({
@@ -343,13 +378,15 @@ function App() {
           prefix,
           continuationToken,
         })
+        if (requestId !== objectRequestId.current) return
         setObjects((current) => (append ? [...current, ...result.entries] : result.entries))
         setNextToken(result.next_continuation_token)
         if (!append) clearSelection()
       } catch (error) {
+        if (requestId !== objectRequestId.current) return
         pushToast('error', `Object load failed: ${errorText(error)}`)
       } finally {
-        setLoadingObjects(false)
+        if (requestId === objectRequestId.current) setLoadingObjects(false)
       }
     },
     [awsContext, clearSelection, prefix, pushToast, selectedBucket],
@@ -569,6 +606,16 @@ function App() {
   }, [activeResize, leftSplitterWidth, rightSplitterWidth, visibleBucketPaneWidth, visibleDetailsPaneWidth])
 
   useEffect(() => {
+    const workspace = workspaceRef.current
+    if (!workspace) return
+    const updateWidth = () => setWorkspaceWidth(workspace.getBoundingClientRect().width)
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(workspace)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     window.localStorage.setItem(BUCKET_PANE_WIDTH_KEY, String(bucketPaneWidth))
   }, [bucketPaneWidth])
 
@@ -586,6 +633,9 @@ function App() {
 
   useEffect(() => {
     window.localStorage.setItem(THEME_KEY, theme)
+    if (isTauriRuntime()) {
+      void getCurrentWindow().setTheme(theme).catch(() => undefined)
+    }
   }, [theme])
 
   useEffect(() => {
@@ -619,6 +669,7 @@ function App() {
     setRegion(profile?.region || region || DEFAULT_REGION)
     const bucketFilters = readStorageMap(LAST_BUCKET_FILTERS_KEY)
     setBucketFilter(bucketFilters[profileName] || '')
+    selectedBucketRef.current = ''
     setSelectedBucket('')
     setPrefix('')
     setObjectFilter('')
@@ -628,6 +679,7 @@ function App() {
   }
 
   function chooseBucket(bucketName: string) {
+    selectedBucketRef.current = bucketName
     setSelectedBucket(bucketName)
     restoreBucketWorkspace(selectedProfile, bucketName)
     if (bucketName === selectedBucket) {
@@ -1198,7 +1250,10 @@ function App() {
     : undefined
 
   return (
-    <div className="app-shell" data-theme={theme}>
+    <div
+      className={isTauriRuntime() && /Mac/i.test(navigator.platform) ? 'app-shell macos-window' : 'app-shell'}
+      data-theme={theme}
+    >
       <AppHeader
         profiles={profiles}
         selectedProfile={selectedProfile}

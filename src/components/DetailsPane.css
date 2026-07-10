@@ -1,6 +1,7 @@
 /* DetailsPane styles */
 
 .details-pane {
+  height: 100%;
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
@@ -13,6 +14,7 @@
   overscroll-behavior: contain;
   padding: var(--space-14);
   background: var(--color-bg-light);
+  container-type: inline-size;
 }
 
 .details-pane > .pane-heading {
@@ -20,7 +22,12 @@
 }
 
 .object-details-pane {
-  grid-template-rows: auto minmax(280px, 38vh) auto auto auto;
+  grid-template-rows: auto minmax(340px, 45vh) auto auto auto;
+}
+
+.folder-details-pane {
+  grid-template-rows: auto auto auto;
+  align-content: start;
 }
 
 .detail-grid {
@@ -63,6 +70,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-white);
+  container-type: inline-size;
 }
 
 .resource-preview {
@@ -106,7 +114,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: var(--space-42) 1fr;
+  grid-template-rows: auto 1fr;
 }
 
 .object-editor-toolbar {
@@ -119,8 +127,16 @@
   background: var(--color-bg-subtle);
 }
 
-.object-editor-toolbar span {
-  flex: 1;
+.editor-toolbar-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  overflow: hidden;
+}
+
+.editor-toolbar-meta span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,9 +146,17 @@
   font-weight: var(--font-weight-bold);
 }
 
-.object-editor-toolbar strong {
+.editor-toolbar-meta strong {
+  flex: 0 0 auto;
   color: var(--color-warm-accent);
   font-size: var(--font-size-sm);
+}
+
+.editor-toolbar-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
 }
 
 .editor-fullscreen-backdrop {
@@ -148,10 +172,26 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: var(--space-44) 1fr;
+  grid-template-rows: auto 1fr;
   border: 1px solid var(--color-border-input);
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--color-bg-white);
   box-shadow: var(--shadow-xl);
+}
+
+@container (max-width: 300px) {
+  .details-pane {
+    padding: var(--space-8);
+    gap: var(--space-8);
+  }
+
+  .detail-grid,
+  .permission-meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-toolbar-meta strong {
+    display: none;
+  }
 }

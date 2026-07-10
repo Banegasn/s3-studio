@@ -24,7 +24,7 @@ export function FolderDetails({
   const firstSample = folderPermissions?.sampled_objects.find((object) => !object.error)
 
   return (
-    <aside className="details-pane">
+    <aside className="details-pane folder-details-pane">
       <PanelHeading eyebrow="Folder" title={selectedEntry.name} />
 
       <DetailGrid>
