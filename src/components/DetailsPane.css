@@ -8,11 +8,11 @@
   border-right: 0;
   display: grid;
   grid-template-rows: auto auto 1fr;
-  gap: var(--space-12);
+  gap: var(--space-10);
   align-content: start;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-14);
+  padding: var(--space-12);
   background: var(--color-bg-light);
   container-type: inline-size;
 }
@@ -22,7 +22,7 @@
 }
 
 .object-details-pane {
-  grid-template-rows: auto minmax(340px, 45vh) auto auto auto;
+  grid-template-rows: auto minmax(300px, 42vh) auto auto auto;
 }
 
 .folder-details-pane {
@@ -40,7 +40,7 @@
   min-width: 0;
   display: grid;
   gap: var(--space-4);
-  padding: var(--space-8);
+  padding: var(--space-8) var(--space-10);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-sm);
   background: var(--color-bg-white);
@@ -157,6 +157,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  margin-left: auto;
 }
 
 .editor-fullscreen-backdrop {
@@ -191,7 +192,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .editor-toolbar-meta strong {
+  .editor-toolbar-meta {
     display: none;
+  }
+
+  .object-editor-toolbar {
+    justify-content: flex-end;
+    padding-left: var(--space-5);
   }
 }

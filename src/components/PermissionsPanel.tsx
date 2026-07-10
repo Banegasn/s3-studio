@@ -56,7 +56,7 @@ export function PermissionsPanel({
 }: Props) {
   const [draftGrants, setDraftGrants] = useState<PermissionGrant[]>(grants)
   const publicBlockCount = publicAccessBlock ? Object.values(publicAccessBlock).filter(Boolean).length : 0
-  const hasMoreAwsSettings = kind === 'bucket' || kind === 'folder' || Boolean(sampledObjects && sampledObjects.length > 0)
+  const hasMoreAwsSettings = kind === 'bucket' || (kind === 'object' && Boolean(sampledObjects && sampledObjects.length > 0))
   const bucketAclsDisabled = kind === 'bucket' && Boolean(objectOwnership?.includes('BucketOwnerEnforced'))
   const showPrimaryAclTable = kind !== 'folder' && !bucketAclsDisabled
 
@@ -88,8 +88,15 @@ export function PermissionsPanel({
       <SectionHeading icon={<ShieldCheck size={18} />} title="Permissions" count={permissionsLoaded ? draftGrants.length : undefined} />
 
       {kind === 'folder' && !permissionsLoaded ? (
-        <div className="permission-note">
-          Open more access settings to load object ACLs for this prefix.
+        <div className="folder-access-card">
+          <div>
+            <strong>This folder has no ACL of its own</strong>
+            <span>S3 folders are prefixes. Access normally comes from IAM and bucket policies; object ACLs are legacy per-object grants.</span>
+          </div>
+          <Button size="sm" onClick={onLoadFolderPermissions} disabled={loadingPermissions}>
+            {loadingPermissions ? <Loader2 className="spin" size={15} /> : <ShieldCheck size={15} />}
+            {loadingPermissions ? 'Loading' : 'Inspect object ACLs'}
+          </Button>
         </div>
       ) : null}
 
@@ -110,46 +117,31 @@ export function PermissionsPanel({
         />
       ) : null}
 
+      {kind === 'folder' && permissionsLoaded ? (
+        <div className="folder-acl-content">
+          <div className="permission-note">
+            These are grants from a sampled object. Saving applies this grant table to {objectCount ?? 0} object
+            {objectCount === 1 ? '' : 's'} currently under the prefix.
+          </div>
+          <AclTable
+            grants={draftGrants}
+            disabled={disabled}
+            onAdd={addGrant}
+            onSave={() => onSaveAclGrants(draftGrants)}
+            onUpdate={updateGrant}
+            onRemove={removeGrant}
+          />
+          {sampledObjects && sampledObjects.length > 0 ? <SampledObjectGrants objects={sampledObjects} /> : null}
+        </div>
+      ) : null}
+
       {hasMoreAwsSettings ? (
-        <details
-          className="advanced-permissions"
-          onToggle={(event) => {
-            if (kind === 'folder' && event.currentTarget.open && !permissionsLoaded && !loadingPermissions) {
-              onLoadFolderPermissions?.()
-            }
-          }}
-        >
+        <details className="advanced-permissions">
           <summary>
             <ChevronDown size={15} />
             More AWS access settings
           </summary>
           <div className="advanced-permissions-body">
-            {kind === 'folder' ? (
-              <>
-                {loadingPermissions ? (
-                  <div className="permission-loading">
-                    <Loader2 className="spin" size={16} />
-                    <span>Loading folder ACLs</span>
-                  </div>
-                ) : null}
-                {permissionsLoaded ? (
-                  <>
-                    <div className="permission-note">
-                      S3 folders are prefixes. Saving this table applies it to {objectCount ?? 0} object
-                      {objectCount === 1 ? '' : 's'} currently under this prefix.
-                    </div>
-                    <AclTable
-                      grants={draftGrants}
-                      disabled={disabled}
-                      onAdd={addGrant}
-                      onSave={() => onSaveAclGrants(draftGrants)}
-                      onUpdate={updateGrant}
-                      onRemove={removeGrant}
-                    />
-                  </>
-                ) : null}
-              </>
-            ) : null}
             {kind === 'bucket' ? (
               <>
                 <div className="permission-meta-grid">

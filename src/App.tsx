@@ -63,13 +63,13 @@ const LAST_BUCKETS_KEY = 's3-cloudfront-studio:last-buckets'
 const LAST_PREFIXES_KEY = 's3-cloudfront-studio:last-prefixes'
 const LAST_BUCKET_FILTERS_KEY = 's3-cloudfront-studio:last-bucket-filters'
 const LAST_OBJECT_FILTERS_KEY = 's3-cloudfront-studio:last-object-filters'
-const BUCKET_PANE_WIDTH_KEY = 's3-cloudfront-studio:bucket-pane-width'
-const DETAILS_PANE_WIDTH_KEY = 's3-cloudfront-studio:details-pane-width'
+const BUCKET_PANE_WIDTH_KEY = 's3-cloudfront-studio:bucket-pane-width:v2'
+const DETAILS_PANE_WIDTH_KEY = 's3-cloudfront-studio:details-pane-width:v2'
 const BUCKET_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:bucket-pane-collapsed'
 const DETAILS_PANE_COLLAPSED_KEY = 's3-cloudfront-studio:details-pane-collapsed'
 const THEME_KEY = 's3-cloudfront-studio:theme'
-const DEFAULT_BUCKET_PANE_WIDTH = 280
-const DEFAULT_DETAILS_PANE_WIDTH = 390
+const DEFAULT_BUCKET_PANE_WIDTH = 252
+const DEFAULT_DETAILS_PANE_WIDTH = 420
 const MIN_BUCKET_PANE_WIDTH = 160
 const MIN_DETAILS_PANE_WIDTH = 240
 const MIN_BROWSER_PANE_WIDTH = 260
@@ -229,8 +229,8 @@ function App() {
     return objects.filter((entry) => entry.name.toLowerCase().includes(query) || entry.key.toLowerCase().includes(query))
   }, [objectFilter, objects])
 
-  const leftSplitterWidth = isBucketPaneCollapsed ? 0 : 10
-  const rightSplitterWidth = isDetailsPaneCollapsed ? 0 : 10
+  const leftSplitterWidth = isBucketPaneCollapsed ? 0 : 6
+  const rightSplitterWidth = isDetailsPaneCollapsed ? 0 : 6
   const desiredBucketPaneWidth = isBucketPaneCollapsed ? 0 : bucketPaneWidth
   const desiredDetailsPaneWidth = isDetailsPaneCollapsed ? 0 : detailsPaneWidth
   const availablePaneWidth = Math.max(0, workspaceWidth - leftSplitterWidth - rightSplitterWidth - MIN_BROWSER_PANE_WIDTH)

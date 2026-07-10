@@ -11,36 +11,44 @@
 }
 
 .browser-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-10);
-  padding: var(--space-12) var(--space-14);
+  gap: var(--space-8);
+  padding: var(--space-10);
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg-light);
+  background: var(--color-bg-white);
   user-select: none;
 }
 
 .toolbar-actions {
   display: flex;
-  align-items: end;
-  gap: var(--space-6);
-  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+.toolbar-actions .btn,
+.toolbar-actions .icon-btn {
+  height: var(--space-36);
+}
+
+.toolbar-actions .btn {
+  padding-inline: var(--space-8);
+  font-size: var(--font-size-base);
 }
 
 .breadcrumbs {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  min-width: 240px;
-  flex: 1 1 320px;
+  min-width: 0;
   overflow: hidden;
 }
 
 .breadcrumb-control {
-  height: var(--space-44);
+  height: var(--space-36);
   padding: 0 var(--space-8);
   border: 1px solid var(--color-border-input);
   border-radius: var(--radius-sm);
@@ -120,7 +128,7 @@
 }
 
 .prefix-editor {
-  height: var(--space-44);
+  height: var(--space-36);
   gap: var(--space-5);
   padding: 0 var(--space-8);
   border: 1px solid var(--color-border);
@@ -150,19 +158,46 @@
   font-weight: var(--font-weight-semibold);
 }
 
+@container (max-width: 760px) {
+  .toolbar-actions .btn span {
+    display: none;
+  }
+
+  .toolbar-actions .btn {
+    width: var(--space-36);
+    padding: 0;
+  }
+}
+
 @container (max-width: 520px) {
   .browser-toolbar {
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
   }
 
-  .breadcrumbs,
-  .toolbar-actions {
-    flex-basis: 100%;
-    min-width: 0;
+  .breadcrumb-actions {
+    padding-left: var(--space-2);
+    gap: 0;
+  }
+
+  .breadcrumb-actions .icon-btn:first-child {
+    display: none;
   }
 
   .toolbar-actions {
+    width: 100%;
+    gap: var(--space-2);
     justify-content: flex-start;
+  }
+
+  .toolbar-actions .btn,
+  .toolbar-actions .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+
+  .object-filter-row > span {
+    display: none;
   }
 }
 
@@ -171,7 +206,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
-  padding: var(--space-10) var(--space-14);
+  padding: var(--space-8) var(--space-10);
   color: var(--color-fg-muted);
   font-size: var(--font-size-base);
   user-select: none;
@@ -179,14 +214,15 @@
 
 .object-filter-row .search-box {
   margin: 0;
-  width: min(440px, 100%);
+  width: min(460px, 100%);
+  height: var(--space-36);
 }
 
 .object-table-wrap {
   min-height: 0;
   position: relative;
   overflow: auto;
-  margin: 0 var(--space-14) var(--space-14);
+  margin: 0 var(--space-10) var(--space-10);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-white);
@@ -204,6 +240,7 @@
 
 .object-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: var(--font-size-base);
   user-select: none;
@@ -220,6 +257,22 @@
   text-align: left;
   font-size: var(--font-size-sm);
   text-transform: uppercase;
+}
+
+.object-table th:nth-child(2) {
+  width: auto;
+}
+
+.object-table .size-cell {
+  width: 90px;
+}
+
+.object-table .modified-cell {
+  width: 150px;
+}
+
+.object-table .storage-cell {
+  width: 105px;
 }
 
 .object-table .select-cell {
@@ -242,6 +295,9 @@
   border-top: 1px solid var(--color-row-border);
   color: var(--color-fg);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .object-table tbody tr {
@@ -261,9 +317,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-6);
-  min-width: 220px;
+  min-width: 0;
   color: var(--color-panel-strong);
   font-weight: var(--font-weight-medium);
+}
+
+.object-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .object-name svg {
@@ -299,4 +361,27 @@
   color: var(--color-accent);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-bold);
+}
+
+@container (max-width: 720px) {
+  .object-table .storage-cell {
+    display: none;
+  }
+}
+
+@container (max-width: 560px) {
+  .object-table .modified-cell {
+    display: none;
+  }
+}
+
+@container (max-width: 390px) {
+  .object-table .size-cell {
+    display: none;
+  }
+
+  .object-table th,
+  .object-table td {
+    padding-inline: var(--space-6);
+  }
 }

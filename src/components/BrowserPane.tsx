@@ -248,19 +248,19 @@ export function BrowserPane({
         <div className="toolbar-actions">
           <Button onClick={onUploadFiles} disabled={!bucket || Boolean(busy)}>
             <Upload size={16} />
-            Files
+            <span>Files</span>
           </Button>
           <Button onClick={onUploadFolders} disabled={!bucket || Boolean(busy)}>
             <Folder size={16} />
-            Folder
+            <span>Folder</span>
           </Button>
           <Button onClick={onDownload} disabled={!hasSelectedEntry || Boolean(busy)}>
             <Download size={16} />
-            {selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}
+            <span>{selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}</span>
           </Button>
           <Button variant="danger" onClick={onDelete} disabled={!hasSelectedEntry || Boolean(busy)}>
             <Trash2 size={16} />
-            {selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}
+            <span>{selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}</span>
           </Button>
           <IconButton onClick={onRefresh} disabled={!bucket || loadingObjects} title="Refresh objects">
             <RefreshCw size={18} className={loadingObjects ? 'spin' : undefined} />
@@ -291,9 +291,9 @@ export function BrowserPane({
                 />
               </th>
               <th>Name</th>
-              <th>Size</th>
-              <th>Modified</th>
-              <th>Storage</th>
+              <th className="size-cell">Size</th>
+              <th className="modified-cell">Modified</th>
+              <th className="storage-cell">Storage</th>
             </tr>
           </thead>
           <tbody>
@@ -328,9 +328,9 @@ export function BrowserPane({
                       {entry.name}
                     </span>
                   </td>
-                  <td>{entry.kind === 'folder' ? '-' : formatBytes(entry.size)}</td>
-                  <td>{entry.kind === 'folder' ? '-' : formatDate(entry.last_modified)}</td>
-                  <td>{entry.storage_class || '-'}</td>
+                  <td className="size-cell">{entry.kind === 'folder' ? '-' : formatBytes(entry.size)}</td>
+                  <td className="modified-cell">{entry.kind === 'folder' ? '-' : formatDate(entry.last_modified)}</td>
+                  <td className="storage-cell">{entry.storage_class || '-'}</td>
                 </tr>
               )
             })}

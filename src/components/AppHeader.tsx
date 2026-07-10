@@ -44,18 +44,16 @@ export function AppHeader({
   }
 
   return (
-    <header className="app-header" onMouseDown={startWindowDrag}>
+    <header className="app-header" data-tauri-drag-region onMouseDown={startWindowDrag}>
       <div className="brand-block">
         <div className="brand-mark">
           <img src={appIcon} alt="" />
         </div>
-        <div>
-          <h1>S3 Studio</h1>
-        </div>
+        <h1>S3 Studio</h1>
       </div>
 
       <div className="context-bar">
-        <label>
+        <label className="context-field profile-field">
           <span>Profile</span>
           <Select value={selectedProfile} onChange={(event: ChangeEvent<HTMLSelectElement>) => onProfileChange(event.target.value)}>
             {profiles.map((profile) => (
@@ -65,22 +63,25 @@ export function AppHeader({
             ))}
           </Select>
         </label>
-        <label>
+        <label className="context-field region-field">
           <span>Region</span>
           <Input value={region} onChange={(event: ChangeEvent<HTMLInputElement>) => onRegionChange(event.target.value)} placeholder={DEFAULT_REGION} />
         </label>
-        <IconButton onClick={onRefreshBuckets} title="Refresh buckets">
-          <RefreshCw size={18} />
-        </IconButton>
-        <IconButton onClick={onToggleTheme} title={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}>
-          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-        </IconButton>
-        <IconButton active={isBucketPaneCollapsed} onClick={onToggleBucketPane} title={isBucketPaneCollapsed ? 'Show buckets' : 'Hide buckets'}>
-          <PanelLeft size={18} />
-        </IconButton>
-        <IconButton active={isDetailsPaneCollapsed} onClick={onToggleDetailsPane} title={isDetailsPaneCollapsed ? 'Show details' : 'Hide details'}>
-          <PanelRight size={18} />
-        </IconButton>
+        <div className="context-actions">
+          <IconButton compact onClick={onRefreshBuckets} title="Refresh buckets">
+            <RefreshCw size={17} />
+          </IconButton>
+          <IconButton compact onClick={onToggleTheme} title={theme === 'dark' ? 'Use light mode' : 'Use dark mode'}>
+            {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          </IconButton>
+          <span className="header-divider" aria-hidden="true" />
+          <IconButton compact active={isBucketPaneCollapsed} onClick={onToggleBucketPane} title={isBucketPaneCollapsed ? 'Show buckets' : 'Hide buckets'}>
+            <PanelLeft size={17} />
+          </IconButton>
+          <IconButton compact active={isDetailsPaneCollapsed} onClick={onToggleDetailsPane} title={isDetailsPaneCollapsed ? 'Show details' : 'Hide details'}>
+            <PanelRight size={17} />
+          </IconButton>
+        </div>
       </div>
     </header>
   )

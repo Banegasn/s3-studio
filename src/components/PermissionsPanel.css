@@ -8,6 +8,45 @@
   container-type: inline-size;
 }
 
+.folder-access-card {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-10);
+  padding: var(--space-12);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
+}
+
+.folder-access-card > div {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-5);
+}
+
+.folder-access-card strong {
+  color: var(--color-panel-strong);
+  font-size: var(--font-size-base);
+}
+
+.folder-access-card span {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+
+.folder-access-card .btn {
+  justify-self: start;
+  min-height: 32px;
+  padding-inline: var(--space-8);
+}
+
+.folder-acl-content {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-8);
+}
+
 .permission-editor {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -238,6 +277,7 @@
 .acl-row select,
 .acl-row input {
   min-width: 0;
+  max-width: 100%;
   width: 100%;
   height: var(--space-36);
   font-size: var(--font-size-sm);
@@ -249,7 +289,7 @@
   }
 
   .acl-row {
-    grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.85fr) minmax(0, 1.2fr) 28px;
+    grid-template-columns: minmax(0, 0.78fr) minmax(0, 0.85fr) minmax(0, 1.25fr) 28px;
     gap: var(--space-1);
     padding: var(--space-1);
   }
@@ -264,6 +304,19 @@
   .acl-row .icon-btn {
     width: 28px;
     height: 28px;
+  }
+
+  .acl-row.acl-head {
+    font-size: 9px;
+    padding-inline: var(--space-1);
+  }
+
+  .permission-block-heading {
+    align-items: flex-start;
+  }
+
+  .permission-block-heading > strong {
+    padding-top: var(--space-5);
   }
 }
 

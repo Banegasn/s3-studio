@@ -12,19 +12,19 @@
 }
 
 .bucket-pane .search-box {
-  margin: 0 var(--space-8) var(--space-8);
+  margin: 0 var(--space-10) var(--space-10);
   min-width: 0;
 }
 
 .bucket-pane .pane-heading {
-  padding-bottom: var(--space-10);
+  padding: var(--space-12) var(--space-10) var(--space-10);
 }
 
 .bucket-list {
   height: auto;
   min-height: 0;
   overflow: auto;
-  padding: 0 var(--space-8) var(--space-10);
+  padding: 0 var(--space-6) var(--space-10);
 }
 
 .bucket-item {
@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 38px;
+  min-height: 36px;
   padding: var(--space-5) var(--space-8);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -56,7 +56,8 @@
 }
 
 .bucket-item.active {
-  background: var(--color-bg-hover);
+  background: var(--color-bg-active);
   color: var(--color-panel-strong);
   font-weight: var(--font-weight-semibold);
+  box-shadow: inset 2px 0 0 var(--color-accent);
 }
