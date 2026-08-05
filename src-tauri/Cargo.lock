@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "aws-s3-cloudfront-studio"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudfront",
