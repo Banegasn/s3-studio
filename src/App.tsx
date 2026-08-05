@@ -9,6 +9,7 @@ import { AppHeader } from './components/AppHeader'
 import { BrowserPane, type SelectionMode } from './components/BrowserPane'
 import { BucketPane } from './components/BucketPane'
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu'
+import { CreateFolderDialog } from './components/CreateFolderDialog'
 import { DetailsPane } from './components/DetailsPane'
 import { InvalidationDialog, type InvalidationDialogState } from './components/InvalidationDialog'
 import { RenameDialog, type RenameDialogState } from './components/RenameDialog'
@@ -18,6 +19,7 @@ import { useToasts } from './hooks/useToasts'
 import {
   createInvalidation,
   copyEntries,
+  createFolder,
   deleteBucketPolicy,
   deleteEntries,
   deleteObject,
@@ -34,6 +36,7 @@ import {
   listBuckets,
   listObjects,
   listProfiles,
+  moveEntries,
   openDevtools,
   renameObject,
   renamePrefix,
@@ -87,6 +90,7 @@ type EntryClipboard = {
   region: string
   sourceBucket: string
   entries: S3Entry[]
+  action: 'copy' | 'move'
 }
 
 function entryId(entry: S3Entry) {
@@ -202,6 +206,7 @@ function App() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
   const [invalidationDialog, setInvalidationDialog] = useState<InvalidationDialogState | undefined>()
   const [renameDialog, setRenameDialog] = useState<RenameDialogState | undefined>()
+  const [createFolderDialogOpen, setCreateFolderDialogOpen] = useState(false)
   const [entryClipboard, setEntryClipboard] = useState<EntryClipboard | undefined>()
   const [busy, setBusy] = useState<string | undefined>()
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | undefined>()
@@ -944,27 +949,59 @@ function App() {
       region: awsContext.region,
       sourceBucket: selectedBucket,
       entries: [...entries],
+      action: 'copy',
     })
     setContextMenu(undefined)
     pushToast('success', `Copied ${entries.length} item${entries.length === 1 ? '' : 's'} to the clipboard`)
   }
 
+  function handleMove(entry?: S3Entry) {
+    if (!selectedBucket) return
+    const entries = selectedEntries.length > 0 ? selectedEntries : entry ? [entry] : selectedEntry ? [selectedEntry] : []
+    if (entries.length === 0) return
+    setEntryClipboard({
+      profile: awsContext.profile,
+      region: awsContext.region,
+      sourceBucket: selectedBucket,
+      entries: [...entries],
+      action: 'move',
+    })
+    setContextMenu(undefined)
+    pushToast('success', `${entries.length} item${entries.length === 1 ? '' : 's'} ready to move`)
+  }
+
   async function handlePaste(destinationPrefix: string) {
     if (!entryClipboard || !selectedBucket || !canPaste) return
+    const clipboard = entryClipboard
+    const isMove = clipboard.action === 'move'
     setContextMenu(undefined)
-    setBusy(`Copying ${entryClipboard.entries.length} item${entryClipboard.entries.length === 1 ? '' : 's'}`)
+    setBusy(`${isMove ? 'Moving' : 'Copying'} ${clipboard.entries.length} item${clipboard.entries.length === 1 ? '' : 's'}`)
     try {
-      const result = await copyEntries({
-        ...awsContext,
-        sourceBucket: entryClipboard.sourceBucket,
-        destinationBucket: selectedBucket,
-        destinationPrefix,
-        entries: entrySelections(entryClipboard.entries),
-      })
-      if (destinationPrefix === prefix) await reloadObjectList()
-      pushToast('success', `Pasted ${result.copied} object${result.copied === 1 ? '' : 's'}`)
+      if (isMove) {
+        const result = await moveEntries({
+          ...awsContext,
+          sourceBucket: clipboard.sourceBucket,
+          destinationBucket: selectedBucket,
+          destinationPrefix,
+          entries: entrySelections(clipboard.entries),
+        })
+        setEntryClipboard(undefined)
+        clearSelection()
+        if (destinationPrefix === prefix || clipboard.sourceBucket === selectedBucket) await reloadObjectList()
+        pushToast('success', `Moved ${result.moved} object${result.moved === 1 ? '' : 's'}`)
+      } else {
+        const result = await copyEntries({
+          ...awsContext,
+          sourceBucket: clipboard.sourceBucket,
+          destinationBucket: selectedBucket,
+          destinationPrefix,
+          entries: entrySelections(clipboard.entries),
+        })
+        if (destinationPrefix === prefix) await reloadObjectList()
+        pushToast('success', `Pasted ${result.copied} object${result.copied === 1 ? '' : 's'}`)
+      }
     } catch (error) {
-      pushToast('error', `Paste failed: ${errorText(error)}`)
+      pushToast('error', `${isMove ? 'Move' : 'Paste'} failed: ${errorText(error)}`)
     } finally {
       setBusy(undefined)
     }
@@ -979,6 +1016,11 @@ function App() {
       if (key === 'c' && currentSelection().length > 0 && !busy) {
         event.preventDefault()
         handleCopy()
+        return
+      }
+      if (key === 'x' && currentSelection().length > 0 && !busy) {
+        event.preventDefault()
+        handleMove()
         return
       }
       if (key === 'v' && canPaste && !busy) {
@@ -996,6 +1038,31 @@ function App() {
     if (!target || busy) return
     setContextMenu(undefined)
     setRenameDialog({ entry: target })
+  }
+
+  function openCreateFolderDialog() {
+    if (!selectedBucket || busy) return
+    setContextMenu(undefined)
+    setCreateFolderDialogOpen(true)
+  }
+
+  async function handleCreateFolder(name: string) {
+    if (!selectedBucket) return
+    setBusy('Creating folder')
+    try {
+      await createFolder({
+        ...awsContext,
+        bucket: selectedBucket,
+        prefix: `${prefix}${name}/`,
+      })
+      setCreateFolderDialogOpen(false)
+      await reloadObjectList()
+      pushToast('success', `Created folder ${name}`)
+    } catch (error) {
+      pushToast('error', `Create folder failed: ${errorText(error)}`)
+    } finally {
+      setBusy(undefined)
+    }
   }
 
   async function handleRename(name: string) {
@@ -1470,6 +1537,7 @@ function App() {
             isDropActive={isDropActive}
             canPaste={canPaste}
             clipboardCount={entryClipboard?.entries.length || 0}
+            clipboardAction={entryClipboard?.action}
             onFilterChange={setObjectFilter}
             onSetPrefix={navigateToPrefix}
             onSelectEntry={selectEntry}
@@ -1482,7 +1550,9 @@ function App() {
             onUploadFolders={handleUploadFolders}
             onDownload={handleDownload}
             onCopy={() => handleCopy()}
+            onMove={() => handleMove()}
             onPaste={() => void handlePaste(prefix)}
+            onCreateFolder={openCreateFolderDialog}
             onRename={() => openRenameDialog()}
             onDelete={handleDelete}
             onRefresh={reloadObjectList}
@@ -1542,10 +1612,13 @@ function App() {
         onOpen={activateEntry}
         selectedCount={selectedEntries.length}
         canPaste={canPaste}
+        clipboardAction={entryClipboard?.action}
         onDownload={handleDownload}
         onCopy={handleCopy}
+        onMove={handleMove}
         onPasteInto={(entry) => void handlePaste(entry.key)}
         onPasteHere={() => void handlePaste(prefix)}
+        onCreateFolder={openCreateFolderDialog}
         onUploadFiles={() => void handleUploadFiles()}
         onUploadFolders={() => void handleUploadFolders()}
         onRefresh={() => void reloadObjectList()}
@@ -1575,6 +1648,14 @@ function App() {
         busy={busy}
         onClose={() => setRenameDialog(undefined)}
         onRename={(name) => void handleRename(name)}
+      />
+
+      <CreateFolderDialog
+        open={createFolderDialogOpen}
+        prefix={prefix}
+        busy={busy}
+        onClose={() => setCreateFolderDialogOpen(false)}
+        onCreate={(name) => void handleCreateFolder(name)}
       />
 
       {busy ? (

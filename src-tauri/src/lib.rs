@@ -28,6 +28,8 @@ pub fn run() {
             s3_ops::rename_object,
             s3_ops::rename_prefix,
             s3_ops::copy_entries,
+            s3_ops::create_folder,
+            s3_ops::move_entries,
             s3_ops::get_bucket_permissions,
             s3_ops::get_object_permissions,
             s3_ops::get_prefix_permissions,

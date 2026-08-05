@@ -89,6 +89,12 @@
   background: var(--color-error-bg);
 }
 
+.toolbar-more-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border-subtle);
+}
+
 .toolbar-actions .btn,
 .toolbar-actions .icon-btn {
   height: var(--space-36);

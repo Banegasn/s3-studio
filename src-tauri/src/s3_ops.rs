@@ -1,10 +1,11 @@
 use crate::aws_clients::{s3_bucket_client, s3_client};
 use crate::models::{
     BucketPermissions, CommandResult, CopyEntriesResult, DeleteEntriesResult, DeletePrefixResult,
-    DeleteResult, DownloadEntriesResult, DownloadPrefixResult, ListObjectsResponse, ObjectMetadata,
-    ObjectPermissions, ObjectPreview, PermissionGrant, PermissionOwner, PermissionUpdateResult,
-    PrefixObjectPermissions, PrefixPermissions, PreviewEncoding, PublicAccessBlock, RenameResult,
-    S3Bucket, S3Entry, S3EntryKind, S3EntrySelection, UploadResult,
+    DeleteResult, DownloadEntriesResult, DownloadPrefixResult, ListObjectsResponse,
+    MoveEntriesResult, ObjectMetadata, ObjectPermissions, ObjectPreview, PermissionGrant,
+    PermissionOwner, PermissionUpdateResult, PrefixObjectPermissions, PrefixPermissions,
+    PreviewEncoding, PublicAccessBlock, RenameResult, S3Bucket, S3Entry, S3EntryKind,
+    S3EntrySelection, UploadResult,
 };
 use crate::utils::{
     content_type_with_guess, date_to_string, error_message, non_negative_u64, normalize_prefix,
@@ -748,6 +749,41 @@ pub async fn rename_prefix(
 }
 
 #[tauri::command]
+pub async fn create_folder(
+    profile: String,
+    region: String,
+    bucket: String,
+    prefix: String,
+) -> CommandResult<UploadResult> {
+    let prefix = normalize_prefix(&prefix);
+    if prefix.is_empty() {
+        return Err("A folder name is required".to_string());
+    }
+
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    if prefix_has_objects(&client, &bucket, &prefix).await? {
+        return Err(format!("A folder already exists at {prefix}"));
+    }
+
+    let output = client
+        .put_object()
+        .bucket(&bucket)
+        .key(&prefix)
+        .body(ByteStream::from(Vec::<u8>::new()))
+        .content_type("application/x-directory")
+        .send()
+        .await
+        .map_err(error_message)?;
+
+    Ok(UploadResult {
+        bucket,
+        key: prefix,
+        etag: output.e_tag().map(ToString::to_string),
+        version_id: output.version_id().map(ToString::to_string),
+    })
+}
+
+#[tauri::command]
 pub async fn copy_entries(
     profile: String,
     region: String,
@@ -885,6 +921,147 @@ pub async fn copy_entries(
         destination_bucket,
         destination_prefix,
         copied: copied_keys.len(),
+    })
+}
+
+#[tauri::command]
+pub async fn move_entries(
+    profile: String,
+    region: String,
+    source_bucket: String,
+    destination_bucket: String,
+    destination_prefix: String,
+    entries: Vec<S3EntrySelection>,
+) -> CommandResult<MoveEntriesResult> {
+    if entries.is_empty() {
+        return Err("No selected items to move".to_string());
+    }
+
+    let destination_prefix = normalize_prefix(&destination_prefix);
+    let source_client = s3_bucket_client(&profile, &region, &source_bucket).await;
+    let destination_client = s3_bucket_client(&profile, &region, &destination_bucket).await;
+    let mut object_keys = BTreeSet::new();
+    let mut prefixes = Vec::new();
+
+    for entry in entries {
+        match entry.kind.as_str() {
+            "folder" => prefixes.push(normalize_prefix(&entry.key)),
+            "object" => {
+                object_keys.insert(entry.key);
+            }
+            _ => return Err(format!("Unsupported selected item kind: {}", entry.kind)),
+        }
+    }
+
+    prefixes.sort();
+    prefixes.dedup();
+    let prefixes = prefixes
+        .into_iter()
+        .fold(Vec::<String>::new(), |mut deduped, prefix| {
+            if !deduped.iter().any(|current| prefix.starts_with(current)) {
+                deduped.push(prefix);
+            }
+            deduped
+        });
+    let object_keys = object_keys
+        .into_iter()
+        .filter(|key| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
+        .collect::<Vec<_>>();
+
+    let mut plans = Vec::new();
+    let mut destination_keys = BTreeSet::new();
+    for source_prefix in prefixes {
+        let destination_root = copy_destination(&destination_prefix, &source_prefix, true)?;
+        validate_move_destination(
+            &source_bucket,
+            &destination_bucket,
+            &source_prefix,
+            &destination_root,
+            true,
+        )?;
+        if prefix_has_objects(&destination_client, &destination_bucket, &destination_root).await? {
+            return Err(format!("A folder already exists at {destination_root}"));
+        }
+
+        let source_keys =
+            list_keys_for_prefix(&source_client, &source_bucket, &source_prefix).await?;
+        if source_keys.is_empty() {
+            return Err(format!("No objects found in {source_prefix}"));
+        }
+        for source_key in source_keys {
+            let suffix = source_key
+                .strip_prefix(&source_prefix)
+                .ok_or_else(|| format!("Object {source_key} is outside {source_prefix}"))?;
+            let destination_key = format!("{destination_root}{suffix}");
+            if !destination_keys.insert(destination_key.clone()) {
+                return Err(format!(
+                    "Multiple selected items would create {destination_key}"
+                ));
+            }
+            plans.push(CopyPlan {
+                source_key,
+                destination_key,
+            });
+        }
+    }
+
+    for source_key in object_keys {
+        let destination_key = copy_destination(&destination_prefix, &source_key, false)?;
+        validate_move_destination(
+            &source_bucket,
+            &destination_bucket,
+            &source_key,
+            &destination_key,
+            false,
+        )?;
+        if object_key_exists(&destination_client, &destination_bucket, &destination_key).await? {
+            return Err(format!("An object already exists at {destination_key}"));
+        }
+        if !destination_keys.insert(destination_key.clone()) {
+            return Err(format!(
+                "Multiple selected items would create {destination_key}"
+            ));
+        }
+        plans.push(CopyPlan {
+            source_key,
+            destination_key,
+        });
+    }
+
+    let source_keys = plans
+        .iter()
+        .map(|plan| plan.source_key.clone())
+        .collect::<Vec<_>>();
+    let mut copied_keys = Vec::with_capacity(plans.len());
+    for plan in &plans {
+        if let Err(error) = copy_key(
+            &source_client,
+            &destination_client,
+            &source_bucket,
+            &destination_bucket,
+            &plan.source_key,
+            &plan.destination_key,
+        )
+        .await
+        {
+            let _ = delete_keys(&destination_client, &destination_bucket, copied_keys).await;
+            return Err(format!("Could not move {}: {error}", plan.source_key));
+        }
+        copied_keys.push(plan.destination_key.clone());
+    }
+
+    let moved = source_keys.len();
+    if let Err(error) = delete_keys(&source_client, &source_bucket, source_keys).await {
+        return Err(format!(
+            "Copied {moved} objects to the destination, but could not remove every source object: {error}"
+        ));
+    }
+
+    Ok(MoveEntriesResult {
+        source_bucket,
+        destination_bucket,
+        destination_prefix,
+        moved,
     })
 }
 
@@ -1350,6 +1527,25 @@ fn validate_rename_paths(source: &str, destination: &str, is_prefix: bool) -> Co
     }
     if is_prefix && (source.starts_with(destination) || destination.starts_with(source)) {
         return Err("A folder cannot be moved into itself or one of its descendants".to_string());
+    }
+    Ok(())
+}
+
+fn validate_move_destination(
+    source_bucket: &str,
+    destination_bucket: &str,
+    source: &str,
+    destination: &str,
+    is_prefix: bool,
+) -> CommandResult<()> {
+    if source_bucket != destination_bucket {
+        return Ok(());
+    }
+    if source == destination {
+        return Err(format!("{source} is already in this folder"));
+    }
+    if is_prefix && destination.starts_with(source) {
+        return Err(format!("Cannot move {source} into itself"));
     }
     Ok(())
 }
@@ -2052,7 +2248,8 @@ fn safe_relative_path(key: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{
-        copy_destination, copy_name_candidate, encoded_copy_source, validate_rename_paths,
+        copy_destination, copy_name_candidate, encoded_copy_source, validate_move_destination,
+        validate_rename_paths,
     };
 
     #[test]
@@ -2106,5 +2303,28 @@ mod tests {
         );
         assert_eq!(copy_name_candidate(".env", false, 1), ".env copy");
         assert_eq!(copy_name_candidate("photos", true, 2), "photos copy 2");
+    }
+
+    #[test]
+    fn move_rejects_same_location_and_descendants() {
+        assert!(validate_move_destination(
+            "bucket",
+            "bucket",
+            "photos/image.jpg",
+            "photos/image.jpg",
+            false,
+        )
+        .is_err());
+        assert!(validate_move_destination(
+            "bucket",
+            "bucket",
+            "photos/",
+            "photos/archive/photos/",
+            true,
+        )
+        .is_err());
+        assert!(
+            validate_move_destination("bucket-a", "bucket-b", "photos/", "photos/", true,).is_ok()
+        );
     }
 }

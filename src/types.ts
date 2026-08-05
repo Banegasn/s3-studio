@@ -120,6 +120,13 @@ export type CopyEntriesResult = {
   copied: number
 }
 
+export type MoveEntriesResult = {
+  source_bucket: string
+  destination_bucket: string
+  destination_prefix: string
+  moved: number
+}
+
 export type DeleteProgress = {
   id: string
   bucket: string

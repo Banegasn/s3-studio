@@ -1,4 +1,4 @@
-import { ClipboardPaste, CloudLightning, Copy, Download, ExternalLink, FolderOpen, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { ClipboardPaste, CloudLightning, Copy, Download, ExternalLink, FolderOpen, FolderPlus, Pencil, RefreshCw, Scissors, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import './ContextMenu.css'
 
@@ -12,12 +12,15 @@ type Props = {
   state?: ContextMenuState
   selectedCount: number
   canPaste: boolean
+  clipboardAction?: 'copy' | 'move'
   onClose: () => void
   onOpen: (entry: S3Entry) => void
   onDownload: (entry: S3Entry) => void
   onCopy: (entry: S3Entry) => void
+  onMove: (entry: S3Entry) => void
   onPasteInto: (entry: S3Entry) => void
   onPasteHere: () => void
+  onCreateFolder: () => void
   onUploadFiles: () => void
   onUploadFolders: () => void
   onRefresh: () => void
@@ -27,14 +30,14 @@ type Props = {
   onInspect: () => void
 }
 
-export function ContextMenu({ state, selectedCount, canPaste, onClose, onOpen, onDownload, onCopy, onPasteInto, onPasteHere, onUploadFiles, onUploadFolders, onRefresh, onRename, onDelete, onInvalidate, onInspect }: Props) {
+export function ContextMenu({ state, selectedCount, canPaste, clipboardAction, onClose, onOpen, onDownload, onCopy, onMove, onPasteInto, onPasteHere, onCreateFolder, onUploadFiles, onUploadFolders, onRefresh, onRename, onDelete, onInvalidate, onInspect }: Props) {
   if (!state) return null
   const { entry } = state
   const isFolder = entry?.kind === 'folder'
   const count = Math.max(1, selectedCount)
   const hasMultiple = count > 1
   const left = Math.min(state.x, window.innerWidth - 236)
-  const top = Math.min(state.y, window.innerHeight - (entry ? 360 : 260))
+  const top = Math.min(state.y, window.innerHeight - (entry ? 400 : 300))
 
   function run(action: () => void) {
     onClose()
@@ -65,10 +68,14 @@ export function ContextMenu({ state, selectedCount, canPaste, onClose, onOpen, o
               <Copy size={15} />
               {hasMultiple ? `Copy ${count} items` : isFolder ? 'Copy folder' : 'Copy'}
             </button>
+            <button type="button" onClick={() => run(() => onMove(entry))} role="menuitem">
+              <Scissors size={15} />
+              {hasMultiple ? `Move ${count} items` : isFolder ? 'Move folder' : 'Move'}
+            </button>
             {isFolder ? (
               <button type="button" onClick={() => run(() => onPasteInto(entry))} role="menuitem" disabled={!canPaste}>
                 <ClipboardPaste size={15} />
-                Paste into folder
+                {clipboardAction === 'move' ? 'Move into folder' : 'Paste into folder'}
               </button>
             ) : null}
             <button type="button" onClick={() => run(() => onRename(entry))} role="menuitem" disabled={hasMultiple}>
@@ -88,9 +95,13 @@ export function ContextMenu({ state, selectedCount, canPaste, onClose, onOpen, o
           <>
             <button type="button" onClick={() => run(onPasteHere)} role="menuitem" disabled={!canPaste}>
               <ClipboardPaste size={15} />
-              Paste here
+              {clipboardAction === 'move' ? 'Move here' : 'Paste here'}
             </button>
             <div className="context-menu-separator" />
+            <button type="button" onClick={() => run(onCreateFolder)} role="menuitem">
+              <FolderPlus size={15} />
+              New folder
+            </button>
             <button type="button" onClick={() => run(onUploadFiles)} role="menuitem">
               <Upload size={15} />
               Upload files

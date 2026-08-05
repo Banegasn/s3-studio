@@ -11,6 +11,7 @@ import type {
   InvalidationResult,
   LinkedDistribution,
   ListObjectsResponse,
+  MoveEntriesResult,
   ObjectMetadata,
   ObjectPermissions,
   ObjectPreview,
@@ -186,6 +187,26 @@ export function copyEntries(
   },
 ) {
   return invoke<CopyEntriesResult>('copy_entries', context)
+}
+
+export function createFolder(
+  context: AwsContext & {
+    bucket: string
+    prefix: string
+  },
+) {
+  return invoke<UploadResult>('create_folder', context)
+}
+
+export function moveEntries(
+  context: AwsContext & {
+    sourceBucket: string
+    destinationBucket: string
+    destinationPrefix: string
+    entries: S3EntrySelection[]
+  },
+) {
+  return invoke<MoveEntriesResult>('move_entries', context)
 }
 
 export function getBucketPermissions(context: AwsContext & { bucket: string }) {

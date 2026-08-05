@@ -174,6 +174,14 @@ pub struct CopyEntriesResult {
     pub copied: usize,
 }
 
+#[derive(Serialize)]
+pub struct MoveEntriesResult {
+    pub source_bucket: String,
+    pub destination_bucket: String,
+    pub destination_prefix: String,
+    pub moved: usize,
+}
+
 #[derive(Clone, Serialize)]
 pub struct PermissionOwner {
     pub display_name: Option<String>,

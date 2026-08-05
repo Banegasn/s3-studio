@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
-import { Check, ChevronRight, ClipboardPaste, Copy, Download, Ellipsis, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Check, ChevronRight, ClipboardPaste, Copy, Download, Ellipsis, File, Folder, FolderPlus, Loader2, Pencil, RefreshCw, Scissors, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
 import { Button, IconButton, SearchBox, EmptyState } from './ui'
@@ -21,6 +21,7 @@ type Props = {
   isDropActive: boolean
   canPaste: boolean
   clipboardCount: number
+  clipboardAction?: 'copy' | 'move'
   onFilterChange: (value: string) => void
   onSetPrefix: (prefix: string) => void
   onSelectEntry: (entry: S3Entry, mode?: SelectionMode) => void
@@ -33,7 +34,9 @@ type Props = {
   onUploadFolders: () => void
   onDownload: () => void
   onCopy: () => void
+  onMove: () => void
   onPaste: () => void
+  onCreateFolder: () => void
   onRename: () => void
   onDelete: () => void
   onRefresh: () => void
@@ -54,6 +57,7 @@ export function BrowserPane({
   isDropActive,
   canPaste,
   clipboardCount,
+  clipboardAction,
   onFilterChange,
   onSetPrefix,
   onSelectEntry,
@@ -66,7 +70,9 @@ export function BrowserPane({
   onUploadFolders,
   onDownload,
   onCopy,
+  onMove,
   onPaste,
+  onCreateFolder,
   onRename,
   onDelete,
   onRefresh,
@@ -195,6 +201,11 @@ export function BrowserPane({
       onCopy()
       return
     }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'x' && hasSelectedEntry) {
+      event.preventDefault()
+      onMove()
+      return
+    }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v' && canPaste) {
       event.preventDefault()
       onPaste()
@@ -303,6 +314,11 @@ export function BrowserPane({
               <span>Actions</span>
             </summary>
             <div className="toolbar-more-menu" role="menu">
+              <button type="button" onClick={() => runToolbarAction(onCreateFolder)} disabled={!bucket || Boolean(busy)} role="menuitem">
+                <FolderPlus size={15} />
+                New folder
+              </button>
+              <div className="toolbar-more-separator" />
               <button type="button" onClick={() => runToolbarAction(onDownload)} disabled={!hasSelectedEntry || Boolean(busy)} role="menuitem">
                 <Download size={15} />
                 {selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}
@@ -311,9 +327,15 @@ export function BrowserPane({
                 <Copy size={15} />
                 {selectedEntries.length > 1 ? `Copy ${selectedEntries.length}` : 'Copy'}
               </button>
+              <button type="button" onClick={() => runToolbarAction(onMove)} disabled={!hasSelectedEntry || Boolean(busy)} role="menuitem">
+                <Scissors size={15} />
+                {selectedEntries.length > 1 ? `Move ${selectedEntries.length}` : 'Move'}
+              </button>
               <button type="button" onClick={() => runToolbarAction(onPaste)} disabled={!canPaste || Boolean(busy)} role="menuitem">
                 <ClipboardPaste size={15} />
-                {clipboardCount > 1 ? `Paste ${clipboardCount}` : 'Paste here'}
+                {clipboardAction === 'move'
+                  ? clipboardCount > 1 ? `Move ${clipboardCount} here` : 'Move here'
+                  : clipboardCount > 1 ? `Paste ${clipboardCount}` : 'Paste here'}
               </button>
               <button type="button" onClick={() => runToolbarAction(onRename)} disabled={selectedEntries.length !== 1 || Boolean(busy)} role="menuitem">
                 <Pencil size={15} />
