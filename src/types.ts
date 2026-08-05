@@ -106,6 +106,20 @@ export type DeleteEntriesResult = {
   deleted: number
 }
 
+export type RenameResult = {
+  bucket: string
+  source: string
+  destination: string
+  renamed: number
+}
+
+export type CopyEntriesResult = {
+  source_bucket: string
+  destination_bucket: string
+  destination_prefix: string
+  copied: number
+}
+
 export type DeleteProgress = {
   id: string
   bucket: string

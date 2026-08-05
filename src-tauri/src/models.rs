@@ -158,6 +158,22 @@ pub struct DeleteEntriesResult {
     pub deleted: usize,
 }
 
+#[derive(Serialize)]
+pub struct RenameResult {
+    pub bucket: String,
+    pub source: String,
+    pub destination: String,
+    pub renamed: usize,
+}
+
+#[derive(Serialize)]
+pub struct CopyEntriesResult {
+    pub source_bucket: String,
+    pub destination_bucket: String,
+    pub destination_prefix: String,
+    pub copied: usize,
+}
+
 #[derive(Clone, Serialize)]
 pub struct PermissionOwner {
     pub display_name: Option<String>,

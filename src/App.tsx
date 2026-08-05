@@ -11,11 +11,13 @@ import { BucketPane } from './components/BucketPane'
 import { ContextMenu, type ContextMenuState } from './components/ContextMenu'
 import { DetailsPane } from './components/DetailsPane'
 import { InvalidationDialog, type InvalidationDialogState } from './components/InvalidationDialog'
+import { RenameDialog, type RenameDialogState } from './components/RenameDialog'
 import { ToastStack } from './components/ToastStack'
 import { ProgressBar } from './components/ui'
 import { useToasts } from './hooks/useToasts'
 import {
   createInvalidation,
+  copyEntries,
   deleteBucketPolicy,
   deleteEntries,
   deleteObject,
@@ -33,6 +35,8 @@ import {
   listObjects,
   listProfiles,
   openDevtools,
+  renameObject,
+  renamePrefix,
   saveObjectText,
   setBucketAclGrants,
   setBucketPolicy,
@@ -77,6 +81,13 @@ const DELETE_PROGRESS_EVENT = 's3-delete-progress'
 
 type ResizePane = 'bucket' | 'details'
 type ThemeMode = 'light' | 'dark'
+
+type EntryClipboard = {
+  profile: string
+  region: string
+  sourceBucket: string
+  entries: S3Entry[]
+}
 
 function entryId(entry: S3Entry) {
   return `${entry.kind}:${entry.key}`
@@ -190,6 +201,8 @@ function App() {
   const [publicAccessBlockDraft, setPublicAccessBlockDraft] = useState<PublicAccessBlock | undefined>()
   const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>()
   const [invalidationDialog, setInvalidationDialog] = useState<InvalidationDialogState | undefined>()
+  const [renameDialog, setRenameDialog] = useState<RenameDialogState | undefined>()
+  const [entryClipboard, setEntryClipboard] = useState<EntryClipboard | undefined>()
   const [busy, setBusy] = useState<string | undefined>()
   const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | undefined>()
   const [loadingObjects, setLoadingObjects] = useState(false)
@@ -228,6 +241,13 @@ function App() {
     if (!query) return objects
     return objects.filter((entry) => entry.name.toLowerCase().includes(query) || entry.key.toLowerCase().includes(query))
   }, [objectFilter, objects])
+
+  const canPaste = Boolean(
+    entryClipboard &&
+      selectedBucket &&
+      entryClipboard.profile === awsContext.profile &&
+      entryClipboard.region === awsContext.region,
+  )
 
   const leftSplitterWidth = isBucketPaneCollapsed ? 0 : 6
   const rightSplitterWidth = isDetailsPaneCollapsed ? 0 : 6
@@ -284,6 +304,7 @@ function App() {
     setSelectionAnchorId(undefined)
     setContextMenu(undefined)
     setInvalidationDialog(undefined)
+    setRenameDialog(undefined)
     clearObjectDetails()
   }, [clearObjectDetails])
 
@@ -433,6 +454,40 @@ function App() {
       }
     },
     [awsContext, isDetailsPaneCollapsed, pushToast, selectedBucket],
+  )
+
+  const refreshObjectContent = useCallback(
+    async (entry: S3Entry) => {
+      if (!selectedBucket || entry.kind !== 'object') return
+      const requestId = detailRequestId.current + 1
+      detailRequestId.current = requestId
+      try {
+        const [nextMetadata, nextPreview] = await Promise.all([
+          getObjectMetadata({ ...awsContext, bucket: selectedBucket, key: entry.key }),
+          getObjectPreview({ ...awsContext, bucket: selectedBucket, key: entry.key, maxBytes: PREVIEW_LIMIT }),
+        ])
+        if (requestId !== detailRequestId.current) return
+        setMetadata(nextMetadata)
+        setPreview(nextPreview)
+        setObjects((current) =>
+          current.map((item) =>
+            item.kind === 'object' && item.key === entry.key
+              ? {
+                  ...item,
+                  size: nextMetadata.size,
+                  last_modified: nextMetadata.last_modified,
+                  etag: nextMetadata.etag,
+                  storage_class: nextMetadata.storage_class,
+                }
+              : item,
+          ),
+        )
+      } catch (error) {
+        if (requestId !== detailRequestId.current) return
+        pushToast('error', `Object saved, but refresh failed: ${errorText(error)}`)
+      }
+    },
+    [awsContext, pushToast, selectedBucket],
   )
 
   const loadBucketDetails = useCallback(async () => {
@@ -688,7 +743,9 @@ function App() {
   }
 
   function navigateToPrefix(nextPrefix: string) {
-    setPrefix(normalizePrefixInput(nextPrefix))
+    const normalizedPrefix = normalizePrefixInput(nextPrefix)
+    if (normalizedPrefix !== prefix) setObjectFilter('')
+    setPrefix(normalizedPrefix)
     setNextToken(undefined)
     clearSelection()
   }
@@ -765,6 +822,11 @@ function App() {
       selectEntry(entry)
     }
     setContextMenu({ entry, x, y })
+  }
+
+  function openFolderContextMenu(x: number, y: number) {
+    clearSelection()
+    setContextMenu({ x, y })
   }
 
   async function handleUploadFiles() {
@@ -868,6 +930,108 @@ function App() {
       pushToast('success', `Downloaded ${result.downloaded} object${result.downloaded === 1 ? '' : 's'} to ${result.destination_path}`)
     } catch (error) {
       pushToast('error', `Bulk download failed: ${errorText(error)}`)
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  function handleCopy(entry?: S3Entry) {
+    if (!selectedBucket) return
+    const entries = selectedEntries.length > 0 ? selectedEntries : entry ? [entry] : selectedEntry ? [selectedEntry] : []
+    if (entries.length === 0) return
+    setEntryClipboard({
+      profile: awsContext.profile,
+      region: awsContext.region,
+      sourceBucket: selectedBucket,
+      entries: [...entries],
+    })
+    setContextMenu(undefined)
+    pushToast('success', `Copied ${entries.length} item${entries.length === 1 ? '' : 's'} to the clipboard`)
+  }
+
+  async function handlePaste(destinationPrefix: string) {
+    if (!entryClipboard || !selectedBucket || !canPaste) return
+    setContextMenu(undefined)
+    setBusy(`Copying ${entryClipboard.entries.length} item${entryClipboard.entries.length === 1 ? '' : 's'}`)
+    try {
+      const result = await copyEntries({
+        ...awsContext,
+        sourceBucket: entryClipboard.sourceBucket,
+        destinationBucket: selectedBucket,
+        destinationPrefix,
+        entries: entrySelections(entryClipboard.entries),
+      })
+      if (destinationPrefix === prefix) await reloadObjectList()
+      pushToast('success', `Pasted ${result.copied} object${result.copied === 1 ? '' : 's'}`)
+    } catch (error) {
+      pushToast('error', `Paste failed: ${errorText(error)}`)
+    } finally {
+      setBusy(undefined)
+    }
+  }
+
+  useEffect(() => {
+    function handleClipboardShortcut(event: globalThis.KeyboardEvent) {
+      if (event.defaultPrevented || (!event.metaKey && !event.ctrlKey) || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target?.isContentEditable || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.tagName === 'SELECT') return
+      const key = event.key.toLowerCase()
+      if (key === 'c' && currentSelection().length > 0 && !busy) {
+        event.preventDefault()
+        handleCopy()
+        return
+      }
+      if (key === 'v' && canPaste && !busy) {
+        event.preventDefault()
+        void handlePaste(prefix)
+      }
+    }
+
+    window.addEventListener('keydown', handleClipboardShortcut)
+    return () => window.removeEventListener('keydown', handleClipboardShortcut)
+  })
+
+  function openRenameDialog(entry?: S3Entry) {
+    const target = entry ?? (selectedEntries.length === 1 ? selectedEntries[0] : undefined)
+    if (!target || busy) return
+    setContextMenu(undefined)
+    setRenameDialog({ entry: target })
+  }
+
+  async function handleRename(name: string) {
+    if (!selectedBucket || !renameDialog) return
+    const { entry } = renameDialog
+    const sourcePath = entry.key
+    const sourceWithoutSlash = entry.kind === 'folder' ? sourcePath.replace(/\/$/, '') : sourcePath
+    const parent = objectParentPrefix(sourceWithoutSlash)
+    const destinationPath = `${parent}${name}${entry.kind === 'folder' ? '/' : ''}`
+    setBusy(`Renaming ${entry.kind}`)
+    try {
+      const result =
+        entry.kind === 'folder'
+          ? await renamePrefix({
+              ...awsContext,
+              bucket: selectedBucket,
+              sourcePrefix: sourcePath,
+              destinationPrefix: destinationPath,
+            })
+          : await renameObject({
+              ...awsContext,
+              bucket: selectedBucket,
+              sourceKey: sourcePath,
+              destinationKey: destinationPath,
+            })
+      setRenameDialog(undefined)
+      clearSelection()
+      await reloadObjectList()
+      pushToast(
+        'success',
+        entry.kind === 'folder'
+          ? `Renamed folder to ${name} (${result.renamed} object${result.renamed === 1 ? '' : 's'})`
+          : `Renamed ${entry.name} to ${name}`,
+      )
+    } catch (error) {
+      pushToast('error', `Rename failed: ${errorText(error)}`)
     } finally {
       setBusy(undefined)
     }
@@ -1153,7 +1317,7 @@ function App() {
         contentType: metadata?.content_type,
       })
       pushToast('success', `Saved ${fileNameFromKey(selectedObject.key)}`)
-      await Promise.all([loadObjectDetails(selectedObject), reloadObjectList()])
+      await refreshObjectContent(selectedObject)
     } catch (error) {
       pushToast('error', `Save failed: ${errorText(error)}`)
     } finally {
@@ -1304,6 +1468,8 @@ function App() {
             busy={busy}
             loadingObjects={loadingObjects}
             isDropActive={isDropActive}
+            canPaste={canPaste}
+            clipboardCount={entryClipboard?.entries.length || 0}
             onFilterChange={setObjectFilter}
             onSetPrefix={navigateToPrefix}
             onSelectEntry={selectEntry}
@@ -1311,9 +1477,13 @@ function App() {
             onClearSelection={clearSelection}
             onActivateEntry={activateEntry}
             onContextMenu={openContextMenu}
+            onBackgroundContextMenu={openFolderContextMenu}
             onUploadFiles={handleUploadFiles}
             onUploadFolders={handleUploadFolders}
             onDownload={handleDownload}
+            onCopy={() => handleCopy()}
+            onPaste={() => void handlePaste(prefix)}
+            onRename={() => openRenameDialog()}
             onDelete={handleDelete}
             onRefresh={reloadObjectList}
             onLoadMore={loadMoreObjectList}
@@ -1371,7 +1541,15 @@ function App() {
         onClose={() => setContextMenu(undefined)}
         onOpen={activateEntry}
         selectedCount={selectedEntries.length}
+        canPaste={canPaste}
         onDownload={handleDownload}
+        onCopy={handleCopy}
+        onPasteInto={(entry) => void handlePaste(entry.key)}
+        onPasteHere={() => void handlePaste(prefix)}
+        onUploadFiles={() => void handleUploadFiles()}
+        onUploadFolders={() => void handleUploadFolders()}
+        onRefresh={() => void reloadObjectList()}
+        onRename={openRenameDialog}
         onDelete={handleDelete}
         onInvalidate={handleInvalidateSelection}
         onInspect={handleInspect}
@@ -1390,6 +1568,13 @@ function App() {
           setInvalidationDialog((current) => (current ? { ...current, paths: { ...current.paths, [distributionId]: value } } : current))
         }
         onCreate={createSelectedInvalidations}
+      />
+
+      <RenameDialog
+        state={renameDialog}
+        busy={busy}
+        onClose={() => setRenameDialog(undefined)}
+        onRename={(name) => void handleRename(name)}
       />
 
       {busy ? (

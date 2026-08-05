@@ -21,6 +21,7 @@ aws-sdk-cloudfront = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-s3 = { version = "1", features = ["behavior-version-latest"] }
 base64 = "0.22"
 mime_guess = "2"
+percent-encoding = "2"
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"

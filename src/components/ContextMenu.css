@@ -40,6 +40,11 @@
   background: var(--color-bg-active);
 }
 
+.context-menu button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .context-menu button.danger {
   color: var(--color-error-fg-strong);
 }

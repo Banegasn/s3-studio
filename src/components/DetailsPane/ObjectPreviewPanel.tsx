@@ -16,13 +16,10 @@ type Props = {
 
 export function ObjectPreviewPanel({ selectedObject, preview, loadingDetails, disabled, theme, onSave }: Props) {
   const [draft, setDraft] = useState('')
-  const [lastPreviewKey, setLastPreviewKey] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     if (!preview || preview.encoding !== 'text') return
-    const previewKey = `${preview.bucket}:${preview.key}:${preview.etag || ''}:${preview.text || ''}`
-    setLastPreviewKey(previewKey)
     setDraft(preview.text || '')
   }, [preview])
 
@@ -45,7 +42,7 @@ export function ObjectPreviewPanel({ selectedObject, preview, loadingDetails, di
         selectedObject={selectedObject}
         draft={draft}
         preview={preview}
-        lastPreviewKey={lastPreviewKey}
+        editorKey={`${preview.bucket}:${preview.key}`}
         isFullscreen={isFullscreen}
         dirty={dirty}
         disabled={disabled}
@@ -63,7 +60,7 @@ function TextEditorView({
   selectedObject,
   draft,
   preview,
-  lastPreviewKey,
+  editorKey,
   isFullscreen,
   dirty,
   disabled,
@@ -75,7 +72,7 @@ function TextEditorView({
   selectedObject: S3Entry
   draft: string
   preview: ObjectPreview
-  lastPreviewKey: string
+  editorKey: string
   isFullscreen: boolean
   dirty: boolean
   disabled?: boolean
@@ -122,7 +119,7 @@ function TextEditorView({
           </IconButton>
         </div>
       </div>
-      <CodeEditor keyValue={lastPreviewKey} value={draft} language={language} theme={theme} onChange={setDraft} />
+      <CodeEditor keyValue={editorKey} value={draft} language={language} theme={theme} onChange={setDraft} />
       {isFullscreen ? (
         <div className="editor-fullscreen-backdrop">
           <section className="editor-fullscreen" role="dialog" aria-modal="true" aria-label="Fullscreen editor">
@@ -145,7 +142,7 @@ function TextEditorView({
                 </IconButton>
               </div>
             </div>
-            <CodeEditor keyValue={`fullscreen:${lastPreviewKey}`} value={draft} language={language} theme={theme} onChange={setDraft} />
+            <CodeEditor keyValue={`fullscreen:${editorKey}`} value={draft} language={language} theme={theme} onChange={setDraft} />
           </section>
         </div>
       ) : null}

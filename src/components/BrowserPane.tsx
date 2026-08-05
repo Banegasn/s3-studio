@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react'
-import { Check, ChevronRight, Copy, Download, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Check, ChevronRight, ClipboardPaste, Copy, Download, Ellipsis, File, Folder, Loader2, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react'
 import type { S3Entry } from '../types'
 import { buildBreadcrumbs, currentFolderLabel, formatBytes, formatDate, parentPrefix } from '../utils/format'
 import { Button, IconButton, SearchBox, EmptyState } from './ui'
@@ -19,6 +19,8 @@ type Props = {
   busy?: string
   loadingObjects: boolean
   isDropActive: boolean
+  canPaste: boolean
+  clipboardCount: number
   onFilterChange: (value: string) => void
   onSetPrefix: (prefix: string) => void
   onSelectEntry: (entry: S3Entry, mode?: SelectionMode) => void
@@ -26,9 +28,13 @@ type Props = {
   onClearSelection: () => void
   onActivateEntry: (entry: S3Entry) => void
   onContextMenu: (entry: S3Entry, x: number, y: number) => void
+  onBackgroundContextMenu: (x: number, y: number) => void
   onUploadFiles: () => void
   onUploadFolders: () => void
   onDownload: () => void
+  onCopy: () => void
+  onPaste: () => void
+  onRename: () => void
   onDelete: () => void
   onRefresh: () => void
   onLoadMore: () => void
@@ -46,6 +52,8 @@ export function BrowserPane({
   busy,
   loadingObjects,
   isDropActive,
+  canPaste,
+  clipboardCount,
   onFilterChange,
   onSetPrefix,
   onSelectEntry,
@@ -53,9 +61,13 @@ export function BrowserPane({
   onClearSelection,
   onActivateEntry,
   onContextMenu,
+  onBackgroundContextMenu,
   onUploadFiles,
   onUploadFolders,
   onDownload,
+  onCopy,
+  onPaste,
+  onRename,
   onDelete,
   onRefresh,
   onLoadMore,
@@ -66,6 +78,7 @@ export function BrowserPane({
   const selectedRowRef = useRef<HTMLTableRowElement | null>(null)
   const selectAllRef = useRef<HTMLInputElement | null>(null)
   const copyResetRef = useRef<number | undefined>(undefined)
+  const moreMenuRef = useRef<HTMLDetailsElement | null>(null)
   const [prefixDraft, setPrefixDraft] = useState(prefix)
   const [isEditingPrefix, setIsEditingPrefix] = useState(false)
   const [prefixCopied, setPrefixCopied] = useState(false)
@@ -88,6 +101,21 @@ export function BrowserPane({
   }, [prefix])
 
   useEffect(() => () => window.clearTimeout(copyResetRef.current), [])
+
+  useEffect(() => {
+    function closeMoreMenu(event: PointerEvent) {
+      if (!moreMenuRef.current?.contains(event.target as Node)) {
+        moreMenuRef.current?.removeAttribute('open')
+      }
+    }
+    document.addEventListener('pointerdown', closeMoreMenu)
+    return () => document.removeEventListener('pointerdown', closeMoreMenu)
+  }, [])
+
+  function runToolbarAction(action: () => void) {
+    moreMenuRef.current?.removeAttribute('open')
+    action()
+  }
 
   function submitPrefix(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -162,6 +190,16 @@ export function BrowserPane({
       onSelectAll()
       return
     }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'c' && hasSelectedEntry) {
+      event.preventDefault()
+      onCopy()
+      return
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'v' && canPaste) {
+      event.preventDefault()
+      onPaste()
+      return
+    }
     if ((event.key === 'Enter' || event.key === 'ArrowRight') && selectedEntry) {
       event.preventDefault()
       onActivateEntry(selectedEntry)
@@ -175,6 +213,11 @@ export function BrowserPane({
     if (event.key === 'Delete' && hasSelectedEntry) {
       event.preventDefault()
       onDelete()
+      return
+    }
+    if (event.key === 'F2' && selectedEntries.length === 1) {
+      event.preventDefault()
+      onRename()
     }
   }
 
@@ -254,14 +297,34 @@ export function BrowserPane({
             <Folder size={16} />
             <span>Folder</span>
           </Button>
-          <Button onClick={onDownload} disabled={!hasSelectedEntry || Boolean(busy)}>
-            <Download size={16} />
-            <span>{selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}</span>
-          </Button>
-          <Button variant="danger" onClick={onDelete} disabled={!hasSelectedEntry || Boolean(busy)}>
-            <Trash2 size={16} />
-            <span>{selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}</span>
-          </Button>
+          <details ref={moreMenuRef} className="toolbar-more">
+            <summary className="btn btn-secondary" title="Object actions">
+              <Ellipsis size={17} />
+              <span>Actions</span>
+            </summary>
+            <div className="toolbar-more-menu" role="menu">
+              <button type="button" onClick={() => runToolbarAction(onDownload)} disabled={!hasSelectedEntry || Boolean(busy)} role="menuitem">
+                <Download size={15} />
+                {selectedEntries.length > 1 ? `Download ${selectedEntries.length}` : 'Download'}
+              </button>
+              <button type="button" onClick={() => runToolbarAction(onCopy)} disabled={!hasSelectedEntry || Boolean(busy)} role="menuitem">
+                <Copy size={15} />
+                {selectedEntries.length > 1 ? `Copy ${selectedEntries.length}` : 'Copy'}
+              </button>
+              <button type="button" onClick={() => runToolbarAction(onPaste)} disabled={!canPaste || Boolean(busy)} role="menuitem">
+                <ClipboardPaste size={15} />
+                {clipboardCount > 1 ? `Paste ${clipboardCount}` : 'Paste here'}
+              </button>
+              <button type="button" onClick={() => runToolbarAction(onRename)} disabled={selectedEntries.length !== 1 || Boolean(busy)} role="menuitem">
+                <Pencil size={15} />
+                Rename
+              </button>
+              <button className="danger" type="button" onClick={() => runToolbarAction(onDelete)} disabled={!hasSelectedEntry || Boolean(busy)} role="menuitem">
+                <Trash2 size={15} />
+                {selectedEntries.length > 1 ? `Delete ${selectedEntries.length}` : 'Delete'}
+              </button>
+            </div>
+          </details>
           <IconButton onClick={onRefresh} disabled={!bucket || loadingObjects} title="Refresh objects">
             <RefreshCw size={18} className={loadingObjects ? 'spin' : undefined} />
           </IconButton>
@@ -276,7 +339,16 @@ export function BrowserPane({
         </span>
       </div>
 
-      <div className="object-table-wrap" tabIndex={0} onKeyDown={handleKeyDown} aria-label="S3 objects">
+      <div
+        className="object-table-wrap"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          onBackgroundContextMenu(event.clientX, event.clientY)
+        }}
+        aria-label="S3 objects"
+      >
         <table className="object-table">
           <thead>
             <tr>
@@ -309,6 +381,7 @@ export function BrowserPane({
                   onDoubleClick={() => onActivateEntry(entry)}
                   onContextMenu={(event) => {
                     event.preventDefault()
+                    event.stopPropagation()
                     onContextMenu(entry, event.clientX, event.clientY)
                   }}
                   aria-selected={isSelected}

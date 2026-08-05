@@ -193,13 +193,14 @@ dependencies = [
 
 [[package]]
 name = "aws-s3-cloudfront-studio"
-version = "0.1.2"
+version = "1.0.0"
 dependencies = [
  "aws-config",
  "aws-sdk-cloudfront",
  "aws-sdk-s3",
  "base64 0.22.1",
  "mime_guess",
+ "percent-encoding",
  "serde",
  "tauri",
  "tauri-build",

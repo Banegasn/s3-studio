@@ -1,0 +1,17 @@
+.rename-dialog-form {
+  display: contents;
+}
+
+.rename-field {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.rename-field small {
+  min-height: 1.2em;
+  color: var(--color-fg-muted);
+  font-weight: var(--font-weight-normal);
+}

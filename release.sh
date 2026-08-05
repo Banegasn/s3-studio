@@ -61,7 +61,7 @@ info "Release plan"
 echo "  version:   $VERSION"
 echo "  tag:       $TAG"
 echo "  branch:    $BRANCH"
-echo "  commit:    $([ "$DO_COMMIT" -eq 1 ] && echo 'bump package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml' || echo 'skip; tag current HEAD')"
+echo "  commit:    $([ "$DO_COMMIT" -eq 1 ] && echo 'bump package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml, src-tauri/Cargo.lock' || echo 'skip; tag current HEAD')"
 echo "  push:      $([ "$DO_PUSH" -eq 1 ] && echo 'push branch and tag to origin' || echo 'skip')"
 echo "  workflow:  GitHub Actions builds macOS Intel/Apple Silicon, Windows x64, Linux x64/ARM64"
 echo
@@ -82,9 +82,10 @@ if [ "$DO_COMMIT" -eq 1 ]; then
     }
   \" '$VERSION'"
   run "perl -0pi -e 's/^version = \"[^\"]+\"/version = \"$VERSION\"/m' src-tauri/Cargo.toml"
+  run "cargo check --manifest-path src-tauri/Cargo.toml"
 
   info "Committing release bump"
-  run "git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml"
+  run "git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock"
   run "git commit -m 'Release $VERSION'"
 fi
 

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type {
   AwsProfile,
   BucketPermissions,
+  CopyEntriesResult,
   DeleteEntriesResult,
   DeletePrefixResult,
   DeleteResult,
@@ -17,6 +18,7 @@ import type {
   PermissionUpdateResult,
   PrefixPermissions,
   PublicAccessBlock,
+  RenameResult,
   S3Bucket,
   S3EntrySelection,
   UploadResult,
@@ -153,6 +155,37 @@ export function deleteEntries(
   },
 ) {
   return invoke<DeleteEntriesResult>('delete_entries', context)
+}
+
+export function renameObject(
+  context: AwsContext & {
+    bucket: string
+    sourceKey: string
+    destinationKey: string
+  },
+) {
+  return invoke<RenameResult>('rename_object', context)
+}
+
+export function renamePrefix(
+  context: AwsContext & {
+    bucket: string
+    sourcePrefix: string
+    destinationPrefix: string
+  },
+) {
+  return invoke<RenameResult>('rename_prefix', context)
+}
+
+export function copyEntries(
+  context: AwsContext & {
+    sourceBucket: string
+    destinationBucket: string
+    destinationPrefix: string
+    entries: S3EntrySelection[]
+  },
+) {
+  return invoke<CopyEntriesResult>('copy_entries', context)
 }
 
 export function getBucketPermissions(context: AwsContext & { bucket: string }) {

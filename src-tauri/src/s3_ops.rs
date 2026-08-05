@@ -1,10 +1,10 @@
 use crate::aws_clients::{s3_bucket_client, s3_client};
 use crate::models::{
-    BucketPermissions, CommandResult, DeleteEntriesResult, DeletePrefixResult, DeleteResult,
-    DownloadEntriesResult, DownloadPrefixResult, ListObjectsResponse, ObjectMetadata,
+    BucketPermissions, CommandResult, CopyEntriesResult, DeleteEntriesResult, DeletePrefixResult,
+    DeleteResult, DownloadEntriesResult, DownloadPrefixResult, ListObjectsResponse, ObjectMetadata,
     ObjectPermissions, ObjectPreview, PermissionGrant, PermissionOwner, PermissionUpdateResult,
-    PrefixObjectPermissions, PrefixPermissions, PreviewEncoding, PublicAccessBlock, S3Bucket,
-    S3Entry, S3EntryKind, S3EntrySelection, UploadResult,
+    PrefixObjectPermissions, PrefixPermissions, PreviewEncoding, PublicAccessBlock, RenameResult,
+    S3Bucket, S3Entry, S3EntryKind, S3EntrySelection, UploadResult,
 };
 use crate::utils::{
     content_type_with_guess, date_to_string, error_message, non_negative_u64, normalize_prefix,
@@ -16,6 +16,7 @@ use aws_sdk_s3::types::{
     ObjectIdentifier, Owner, Permission, PublicAccessBlockConfiguration, Type,
 };
 use base64::{engine::general_purpose, Engine as _};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Serialize;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -40,6 +41,11 @@ struct DeleteProgressPayload {
 struct UploadPlan {
     source_path: PathBuf,
     key: String,
+}
+
+struct CopyPlan {
+    source_key: String,
+    destination_key: String,
 }
 
 #[tauri::command]
@@ -647,6 +653,242 @@ pub async fn delete_entries(
 }
 
 #[tauri::command]
+pub async fn rename_object(
+    profile: String,
+    region: String,
+    bucket: String,
+    source_key: String,
+    destination_key: String,
+) -> CommandResult<RenameResult> {
+    validate_rename_paths(&source_key, &destination_key, false)?;
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    if object_key_exists(&client, &bucket, &destination_key).await? {
+        return Err(format!("An object already exists at {destination_key}"));
+    }
+
+    copy_key(
+        &client,
+        &client,
+        &bucket,
+        &bucket,
+        &source_key,
+        &destination_key,
+    )
+    .await?;
+    if let Err(error) = delete_keys(&client, &bucket, vec![source_key.clone()]).await {
+        return Err(format!(
+            "Copied the object to {destination_key}, but could not remove {source_key}: {error}"
+        ));
+    }
+
+    Ok(RenameResult {
+        bucket,
+        source: source_key,
+        destination: destination_key,
+        renamed: 1,
+    })
+}
+
+#[tauri::command]
+pub async fn rename_prefix(
+    profile: String,
+    region: String,
+    bucket: String,
+    source_prefix: String,
+    destination_prefix: String,
+) -> CommandResult<RenameResult> {
+    let source_prefix = normalize_prefix(&source_prefix);
+    let destination_prefix = normalize_prefix(&destination_prefix);
+    validate_rename_paths(&source_prefix, &destination_prefix, true)?;
+    let client = s3_bucket_client(&profile, &region, &bucket).await;
+    if prefix_has_objects(&client, &bucket, &destination_prefix).await? {
+        return Err(format!("A folder already exists at {destination_prefix}"));
+    }
+
+    let source_keys = list_keys_for_prefix(&client, &bucket, &source_prefix).await?;
+    if source_keys.is_empty() {
+        return Err("No objects found in this folder".to_string());
+    }
+
+    let mut copied_keys = Vec::with_capacity(source_keys.len());
+    for source_key in &source_keys {
+        let suffix = source_key
+            .strip_prefix(&source_prefix)
+            .ok_or_else(|| format!("Object {source_key} is outside the folder being renamed"))?;
+        let destination_key = format!("{destination_prefix}{suffix}");
+        if let Err(error) = copy_key(
+            &client,
+            &client,
+            &bucket,
+            &bucket,
+            source_key,
+            &destination_key,
+        )
+        .await
+        {
+            let _ = delete_keys(&client, &bucket, copied_keys).await;
+            return Err(format!("Could not rename {source_key}: {error}"));
+        }
+        copied_keys.push(destination_key);
+    }
+
+    let renamed = source_keys.len();
+    if let Err(error) = delete_keys(&client, &bucket, source_keys).await {
+        return Err(format!(
+            "Copied {renamed} objects to {destination_prefix}, but could not remove every object from {source_prefix}: {error}"
+        ));
+    }
+
+    Ok(RenameResult {
+        bucket,
+        source: source_prefix,
+        destination: destination_prefix,
+        renamed,
+    })
+}
+
+#[tauri::command]
+pub async fn copy_entries(
+    profile: String,
+    region: String,
+    source_bucket: String,
+    destination_bucket: String,
+    destination_prefix: String,
+    entries: Vec<S3EntrySelection>,
+) -> CommandResult<CopyEntriesResult> {
+    if entries.is_empty() {
+        return Err("No selected items to copy".to_string());
+    }
+
+    let destination_prefix = normalize_prefix(&destination_prefix);
+    let source_client = s3_bucket_client(&profile, &region, &source_bucket).await;
+    let destination_client = s3_bucket_client(&profile, &region, &destination_bucket).await;
+    let mut object_keys = BTreeSet::new();
+    let mut prefixes = Vec::new();
+
+    for entry in entries {
+        match entry.kind.as_str() {
+            "folder" => prefixes.push(normalize_prefix(&entry.key)),
+            "object" => {
+                object_keys.insert(entry.key);
+            }
+            _ => return Err(format!("Unsupported selected item kind: {}", entry.kind)),
+        }
+    }
+
+    prefixes.sort();
+    prefixes.dedup();
+    let prefixes = prefixes
+        .into_iter()
+        .fold(Vec::<String>::new(), |mut deduped, prefix| {
+            if !deduped.iter().any(|current| prefix.starts_with(current)) {
+                deduped.push(prefix);
+            }
+            deduped
+        });
+    let object_keys = object_keys
+        .into_iter()
+        .filter(|key| !prefixes.iter().any(|prefix| key.starts_with(prefix)))
+        .collect::<Vec<_>>();
+
+    let mut plans = Vec::new();
+    let mut destination_keys = BTreeSet::new();
+    for source_prefix in prefixes {
+        let mut destination_root = copy_destination(&destination_prefix, &source_prefix, true)?;
+        let is_same_folder =
+            source_bucket == destination_bucket && destination_root == source_prefix;
+        if is_same_folder {
+            destination_root = unique_folder_copy_destination(
+                &destination_client,
+                &destination_bucket,
+                &destination_prefix,
+                &source_prefix,
+            )
+            .await?;
+        } else if prefix_has_objects(&destination_client, &destination_bucket, &destination_root)
+            .await?
+        {
+            return Err(format!("A folder already exists at {destination_root}"));
+        }
+        if source_bucket == destination_bucket && destination_root.starts_with(&source_prefix) {
+            return Err(format!("Cannot copy {source_prefix} into itself"));
+        }
+        let source_keys =
+            list_keys_for_prefix(&source_client, &source_bucket, &source_prefix).await?;
+        if source_keys.is_empty() {
+            return Err(format!("No objects found in {source_prefix}"));
+        }
+        for source_key in source_keys {
+            let suffix = source_key
+                .strip_prefix(&source_prefix)
+                .ok_or_else(|| format!("Object {source_key} is outside {source_prefix}"))?;
+            let destination_key = format!("{destination_root}{suffix}");
+            if !destination_keys.insert(destination_key.clone()) {
+                return Err(format!(
+                    "Multiple selected items would create {destination_key}"
+                ));
+            }
+            plans.push(CopyPlan {
+                source_key,
+                destination_key,
+            });
+        }
+    }
+
+    for source_key in object_keys {
+        let mut destination_key = copy_destination(&destination_prefix, &source_key, false)?;
+        let is_same_folder = source_bucket == destination_bucket && source_key == destination_key;
+        if is_same_folder {
+            destination_key = unique_object_copy_destination(
+                &destination_client,
+                &destination_bucket,
+                &destination_prefix,
+                &source_key,
+            )
+            .await?;
+        } else if object_key_exists(&destination_client, &destination_bucket, &destination_key)
+            .await?
+        {
+            return Err(format!("An object already exists at {destination_key}"));
+        }
+        if !destination_keys.insert(destination_key.clone()) {
+            return Err(format!(
+                "Multiple selected items would create {destination_key}"
+            ));
+        }
+        plans.push(CopyPlan {
+            source_key,
+            destination_key,
+        });
+    }
+
+    let mut copied_keys = Vec::with_capacity(plans.len());
+    for plan in plans {
+        if let Err(error) = copy_key(
+            &source_client,
+            &destination_client,
+            &source_bucket,
+            &destination_bucket,
+            &plan.source_key,
+            &plan.destination_key,
+        )
+        .await
+        {
+            let _ = delete_keys(&destination_client, &destination_bucket, copied_keys).await;
+            return Err(format!("Could not copy {}: {error}", plan.source_key));
+        }
+        copied_keys.push(plan.destination_key);
+    }
+
+    Ok(CopyEntriesResult {
+        source_bucket,
+        destination_bucket,
+        destination_prefix,
+        copied: copied_keys.len(),
+    })
+}
+
+#[tauri::command]
 pub async fn get_bucket_permissions(
     profile: String,
     region: String,
@@ -1097,6 +1339,196 @@ async fn list_keys_for_prefix(
     }
 
     Ok(keys)
+}
+
+fn validate_rename_paths(source: &str, destination: &str, is_prefix: bool) -> CommandResult<()> {
+    if source.is_empty() || destination.is_empty() {
+        return Err("Source and destination names are required".to_string());
+    }
+    if source == destination {
+        return Err("Choose a different name".to_string());
+    }
+    if is_prefix && (source.starts_with(destination) || destination.starts_with(source)) {
+        return Err("A folder cannot be moved into itself or one of its descendants".to_string());
+    }
+    Ok(())
+}
+
+fn copy_destination(
+    destination_prefix: &str,
+    source: &str,
+    is_folder: bool,
+) -> CommandResult<String> {
+    let name = source_name(source)?;
+    Ok(format!(
+        "{destination_prefix}{name}{}",
+        if is_folder { "/" } else { "" }
+    ))
+}
+
+fn source_name(source: &str) -> CommandResult<&str> {
+    source
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| format!("Could not determine the name for {source}"))
+}
+
+fn copy_name_candidate(name: &str, is_folder: bool, copy_number: usize) -> String {
+    let (stem, extension) = if is_folder {
+        (name, "")
+    } else {
+        name.rfind('.')
+            .filter(|index| *index > 0 && *index < name.len() - 1)
+            .map(|index| name.split_at(index))
+            .unwrap_or((name, ""))
+    };
+    let suffix = if copy_number == 1 {
+        " copy".to_string()
+    } else {
+        format!(" copy {copy_number}")
+    };
+    format!("{stem}{suffix}{extension}")
+}
+
+async fn unique_object_copy_destination(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    destination_prefix: &str,
+    source_key: &str,
+) -> CommandResult<String> {
+    let name = source_name(source_key)?;
+    for copy_number in 1..=10_000 {
+        let destination = format!(
+            "{destination_prefix}{}",
+            copy_name_candidate(name, false, copy_number)
+        );
+        if !object_key_exists(client, bucket, &destination).await? {
+            return Ok(destination);
+        }
+    }
+    Err(format!("Could not find an available copy name for {name}"))
+}
+
+async fn unique_folder_copy_destination(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    destination_prefix: &str,
+    source_prefix: &str,
+) -> CommandResult<String> {
+    let name = source_name(source_prefix)?;
+    for copy_number in 1..=10_000 {
+        let destination = format!(
+            "{destination_prefix}{}/",
+            copy_name_candidate(name, true, copy_number)
+        );
+        if !prefix_has_objects(client, bucket, &destination).await? {
+            return Ok(destination);
+        }
+    }
+    Err(format!("Could not find an available copy name for {name}"))
+}
+
+async fn object_key_exists(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    key: &str,
+) -> CommandResult<bool> {
+    let output = client
+        .list_objects_v2()
+        .bucket(bucket)
+        .prefix(key)
+        .max_keys(1)
+        .send()
+        .await
+        .map_err(error_message)?;
+    Ok(output
+        .contents()
+        .iter()
+        .any(|object| object.key() == Some(key)))
+}
+
+async fn prefix_has_objects(
+    client: &aws_sdk_s3::Client,
+    bucket: &str,
+    prefix: &str,
+) -> CommandResult<bool> {
+    let output = client
+        .list_objects_v2()
+        .bucket(bucket)
+        .prefix(prefix)
+        .max_keys(1)
+        .send()
+        .await
+        .map_err(error_message)?;
+    Ok(!output.contents().is_empty())
+}
+
+async fn copy_key(
+    source_client: &aws_sdk_s3::Client,
+    destination_client: &aws_sdk_s3::Client,
+    source_bucket: &str,
+    destination_bucket: &str,
+    source_key: &str,
+    destination_key: &str,
+) -> CommandResult<()> {
+    let head = source_client
+        .head_object()
+        .bucket(source_bucket)
+        .key(source_key)
+        .send()
+        .await
+        .map_err(error_message)?;
+    let current_acl = source_client
+        .get_object_acl()
+        .bucket(source_bucket)
+        .key(source_key)
+        .send()
+        .await
+        .ok();
+    let mut request = destination_client
+        .copy_object()
+        .bucket(destination_bucket)
+        .key(destination_key)
+        .copy_source(encoded_copy_source(source_bucket, source_key))
+        .set_storage_class(head.storage_class().cloned())
+        .set_server_side_encryption(head.server_side_encryption().cloned())
+        .set_ssekms_key_id(head.ssekms_key_id().map(ToString::to_string))
+        .set_bucket_key_enabled(head.bucket_key_enabled());
+    if let Some(etag) = head.e_tag() {
+        request = request.copy_source_if_match(etag);
+    }
+    request.send().await.map_err(error_message)?;
+
+    if let Some(acl) = current_acl {
+        if let Some(owner) = acl.owner() {
+            let policy = AccessControlPolicy::builder()
+                .owner(owner.clone())
+                .set_grants(Some(acl.grants().to_vec()))
+                .build();
+            // Buckets with ACLs disabled reject this call, but already give the copy
+            // the same bucket-owner-controlled effective permissions.
+            let _ = destination_client
+                .put_object_acl()
+                .bucket(destination_bucket)
+                .key(destination_key)
+                .access_control_policy(policy)
+                .send()
+                .await;
+        }
+    }
+
+    Ok(())
+}
+
+fn encoded_copy_source(bucket: &str, key: &str) -> String {
+    let encoded_key = key
+        .split('/')
+        .map(|segment| utf8_percent_encode(segment, NON_ALPHANUMERIC).to_string())
+        .collect::<Vec<_>>()
+        .join("/");
+    format!("{bucket}/{encoded_key}")
 }
 
 async fn delete_keys(
@@ -1615,4 +2047,64 @@ fn safe_relative_path(key: &str) -> PathBuf {
             path.push(part);
             path
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        copy_destination, copy_name_candidate, encoded_copy_source, validate_rename_paths,
+    };
+
+    #[test]
+    fn rename_paths_must_differ() {
+        assert_eq!(
+            validate_rename_paths("photos/", "photos/", true),
+            Err("Choose a different name".to_string())
+        );
+    }
+
+    #[test]
+    fn folder_rename_rejects_overlapping_prefixes() {
+        assert!(validate_rename_paths("photos/", "photos/archive/", true).is_err());
+        assert!(validate_rename_paths("photos/archive/", "photos/", true).is_err());
+        assert!(validate_rename_paths("photos/", "photostream/", true).is_ok());
+    }
+
+    #[test]
+    fn copy_source_encodes_each_key_segment() {
+        assert_eq!(
+            encoded_copy_source("example-bucket", "folder/my image #1.jpg"),
+            "example-bucket/folder/my%20image%20%231%2Ejpg"
+        );
+    }
+
+    #[test]
+    fn copy_destinations_keep_names_and_folder_shape() {
+        assert_eq!(
+            copy_destination("archive/", "photos/2026/", true).unwrap(),
+            "archive/2026/"
+        );
+        assert_eq!(
+            copy_destination("archive/", "photos/cover.jpg", false).unwrap(),
+            "archive/cover.jpg"
+        );
+    }
+
+    #[test]
+    fn duplicate_names_keep_file_extensions() {
+        assert_eq!(
+            copy_name_candidate("report.json", false, 1),
+            "report copy.json"
+        );
+        assert_eq!(
+            copy_name_candidate("report.json", false, 2),
+            "report copy 2.json"
+        );
+        assert_eq!(
+            copy_name_candidate("archive.tar.gz", false, 1),
+            "archive.tar copy.gz"
+        );
+        assert_eq!(copy_name_candidate(".env", false, 1), ".env copy");
+        assert_eq!(copy_name_candidate("photos", true, 2), "photos copy 2");
+    }
 }

@@ -10,6 +10,8 @@ Cross-platform Tauri desktop app for browsing S3 and invalidating linked CloudFr
 - Uploads local files or whole local folders into the current S3 prefix.
 - Supports dragging files or folders from Finder or Explorer into the object browser to upload.
 - Selects multiple S3 folders and objects with checkboxes, Shift-click, keyboard ranges, or Cmd/Ctrl+A.
+- Copies selected objects or complete folder prefixes between folders and buckets with toolbar actions, context menus, or Cmd/Ctrl+C and Cmd/Ctrl+V.
+- Renames individual objects or entire folder prefixes from the toolbar, context menu, or F2 shortcut.
 - Downloads or deletes selected objects and selected prefixes after confirmation.
 - Finds CloudFront distributions whose origins point at the selected object bucket.
 - Suggests an invalidation path by accounting for CloudFront origin paths.
